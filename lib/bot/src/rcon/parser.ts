@@ -164,10 +164,13 @@ function isScientistName(name: string): boolean { return SCIENTIST_RE.test(name)
 
 // Random kill phrases for in-game feed
 const KILL_PHRASES = [
-  "eliminated", "wiped out", "smoked", "annihilated", "wrecked",
-  "clapped", "terminated", "deleted", "bodied", "dispatched",
-  "destroyed", "put down", "ended", "crushed", "neutralized",
-  "wasted", "finished off", "sent to respawn", "erased", "dropped",
+  "obliterated", "annihilated", "demolished", "decimated", "vaporized",
+  "eviscerated", "annihilated", "liquidated", "pulverized", "exterminated",
+  "smoked", "clapped", "wrecked", "bodied", "slaughtered",
+  "ended", "deleted", "erased", "dropped", "wasted",
+  "wiped out", "finished off", "sent to respawn", "put in the dirt", "put down",
+  "cooked", "farmed", "styled on", "humiliated", "dunked on",
+  "absolutely cooked", "made a fool of", "turned into a corpse",
 ];
 
 function pickPhrase(custom: string | null | undefined, randomize: boolean): string {
@@ -252,18 +255,21 @@ async function handleKill(serverId: number, killer: string, victim: string, weap
       const phrase = pickPhrase(customPhrase, randomize);
       let gameMsg: string | null = null;
 
+      const L = `<color=#CC44FF>\u300A</color>`;
+      const R = `<color=#CC44FF>\u300B</color>`;
+
       if (isSuicide) {
-        gameMsg = `<color=#4488FF>\u2620</color> <color=${killerColor}>${victim}</color> <color=${phraseColor}>met their own end</color>`;
+        gameMsg = `${L} <color=${killerColor}>${victim}</color> <color=${phraseColor}>met their own end</color> ${R}`;
       } else if (isPlayerVsPlayer) {
-        gameMsg = `<color=#CC44FF>\u2620</color> <color=${killerColor}>${killer}</color> <color=${phraseColor}>${phrase}</color> <color=${victimColor}>${victim}</color> <color=#CC44FF>|</color> <color=#9944CC>${weapon}</color>`;
+        gameMsg = `${L} <color=${killerColor}>${killer}</color> <color=${phraseColor}>${phrase}</color> <color=${victimColor}>${victim}</color> <color=#CC44FF>[</color><color=#9944CC>${weapon}</color><color=#CC44FF>]</color> ${R}`;
       } else if (isPlayerKillsSci && sciKillerEnabled === "on") {
-        gameMsg = `<color=#CC44FF>\u25C6</color> <color=${killerColor}>${killer}</color> <color=${phraseColor}>${phrase}</color> <color=${victimColor}>a Scientist</color>`;
+        gameMsg = `${L} <color=${killerColor}>${killer}</color> <color=${phraseColor}>${phrase}</color> <color=${victimColor}>a Scientist</color> ${R}`;
       } else if (isSciKillsPlayer && sciVictimEnabled === "on") {
-        gameMsg = `<color=#CC44FF>\u25C6</color> <color=${victimColor}>${victim}</color> <color=${phraseColor}>was eliminated by</color> <color=${killerColor}>a Scientist</color>`;
+        gameMsg = `${L} <color=${victimColor}>${victim}</color> <color=${phraseColor}>was eliminated by</color> <color=${killerColor}>a Scientist</color> ${R}`;
       } else if (isPlayerKillsMisc && miscKills === "on") {
-        gameMsg = `<color=#CC44FF>\u25C6</color> <color=${killerColor}>${killer}</color> <color=${phraseColor}>${phrase}</color> <color=${victimColor}>${victim}</color>`;
+        gameMsg = `${L} <color=${killerColor}>${killer}</color> <color=${phraseColor}>${phrase}</color> <color=${victimColor}>${victim}</color> ${R}`;
       } else if (isMiscKillsPlayer && miscKills === "on") {
-        gameMsg = `<color=#CC44FF>\u25C6</color> <color=${victimColor}>${victim}</color> <color=${phraseColor}>was killed by</color> <color=${killerColor}>${killer}</color>`;
+        gameMsg = `${L} <color=${victimColor}>${victim}</color> <color=${phraseColor}>was killed by</color> <color=${killerColor}>${killer}</color> ${R}`;
       }
 
       if (gameMsg) await sendGameSay(server, gameMsg);
@@ -308,7 +314,7 @@ async function handleKill(serverId: number, killer: string, victim: string, weap
       const server = await getServerInfo(serverId);
       if (server?.rcon_host) {
         const label = STREAK_LABELS[streak.count] ?? `${streak.count} KILL STREAK`;
-        const streakMsg = `<color=#CC44FF>${label}</color> <color=#FF3333>${killer}</color> <color=#4488FF>\u2014 ${streak.count} kills in a row!</color>`;
+        const streakMsg = `<color=#CC44FF>\u300A</color> <color=#FF3333>${killer}</color> <color=#4488FF>${label}</color> <color=#CC44FF>\u300B</color>`;
         await sendGameSay(server, streakMsg);
       }
     }
