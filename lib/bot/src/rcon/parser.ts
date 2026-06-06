@@ -155,22 +155,32 @@ async function handleNoteLog(serverId: number, playerName: string, noteText: str
 const playerKillStreaks = new Map<string, { count: number; lastReset: number }>();
 const killAntiAbuseMap = new Map<string, number>();
 
+// NPC entity detection
+const SCIENTIST_RE = /scientist/i;
+const NPC_RE = /scientist|dweller|bear|wolf|boar|stag|chicken|horse|zombie|bradley|helicopter|patrol|npc/i;
+
+function isNpc(name: string): boolean { return NPC_RE.test(name); }
+function isScientistName(name: string): boolean { return SCIENTIST_RE.test(name); }
+
+// Random kill phrases for in-game feed
+const KILL_PHRASES = [
+  "eliminated", "wiped out", "smoked", "annihilated", "wrecked",
+  "clapped", "terminated", "deleted", "bodied", "dispatched",
+  "destroyed", "put down", "ended", "crushed", "neutralized",
+  "wasted", "finished off", "sent to respawn", "erased", "dropped",
+];
+
+function pickPhrase(custom: string | null | undefined, randomize: boolean): string {
+  if (randomize) return KILL_PHRASES[Math.floor(Math.random() * KILL_PHRASES.length)]!;
+  return custom ?? "killed";
+}
+
 async function sendGameSay(server: db.ServerRow, msg: string): Promise<void> {
   if (!server.rcon_host) return;
   await rconManager.sendFireAndForget(
     server.id, server.rcon_host, server.rcon_port!, server.rcon_password!,
     `global.say "${msg}"`
   ).catch(() => null);
-}
-
-function buildKillfeedGameMsg(killer: string, victim: string, weapon: string, isSuicide: boolean, isScientist: boolean): string {
-  if (isSuicide) {
-    return `<color=#4488FF>\u2620</color> <color=#FF3333>${victim}</color> <color=#4488FF>met their own end</color>`;
-  }
-  if (isScientist) {
-    return `<color=#CC44FF>\u25C6</color> <color=#FF3333>${killer}</color> <color=#4488FF>eliminated a Scientist</color>`;
-  }
-  return `<color=#CC44FF>\u2620</color> <color=#FF3333>${killer}</color> <color=#4488FF>killed</color> <color=#FF3333>${victim}</color> <color=#CC44FF>|</color> <color=#9944CC>${weapon}</color>`;
 }
 
 const STREAK_LABELS: Record<number, string> = {
@@ -182,33 +192,98 @@ const STREAK_LABELS: Record<number, string> = {
 
 async function handleKill(serverId: number, killer: string, victim: string, weapon: string): Promise<void> {
   const isSuicide = killer === victim;
-  const isScientist = killer.toLowerCase().includes("scientist") || victim.toLowerCase().includes("scientist");
+  const killerIsNpc = isNpc(killer);
+  const victimIsNpc = isNpc(victim);
+  const killerIsScientist = isScientistName(killer);
+  const victimIsScientist = isScientistName(victim);
 
-  const [discordEnabled, gameEnabled] = await Promise.all([
+  const isPlayerVsPlayer   = !killerIsNpc && !victimIsNpc;
+  const isPlayerKillsSci   = !killerIsNpc && victimIsScientist;
+  const isSciKillsPlayer   = killerIsScientist && !victimIsNpc;
+  const isPlayerKillsMisc  = !killerIsNpc && victimIsNpc && !victimIsScientist;
+  const isMiscKillsPlayer  = killerIsNpc && !killerIsScientist && !victimIsNpc;
+
+  // Load all configs in one parallel batch
+  const [
+    discordEnabled, gameEnabled,
+    miscKills, sciKillerEnabled, sciVictimEnabled,
+    killerColor, phraseColor, victimColor,
+    customPhrase, phraseRandomizer,
+  ] = await Promise.all([
     getConfig(serverId, "KillFeedDiscord").then(v => v ?? "on"),
     getConfig(serverId, "KillFeedGame").then(v => v ?? "off"),
+    getConfig(serverId, "MiscKills").then(v => v ?? "off"),
+    getConfig(serverId, "ScientistKiller").then(v => v ?? "off"),
+    getConfig(serverId, "ScientistVictim").then(v => v ?? "off"),
+    getConfig(serverId, "killercolor").then(v => v ?? "#FF3333"),
+    getConfig(serverId, "phrasecolor").then(v => v ?? "#4488FF"),
+    getConfig(serverId, "victimcolor").then(v => v ?? "#FF3333"),
+    getConfig(serverId, "killphrase"),
+    getConfig(serverId, "killphraserandomizer").then(v => v ?? "off"),
   ]);
 
+  const randomize = phraseRandomizer === "on";
+
+  // Discord kill feed
   if (discordEnabled === "on") {
-    let msg: string;
+    let msg: string | null = null;
+
     if (isSuicide) {
       msg = `\u{1F480} **${victim}** died to themselves with *${weapon}*`;
-    } else if (isScientist) {
-      msg = `\u{1F916} **${killer}** eliminated **${victim}** with *${weapon}*`;
-    } else {
+    } else if (isPlayerVsPlayer) {
       msg = `\u2694\uFE0F **${killer}** took down **${victim}** with *${weapon}*`;
+    } else if (isPlayerKillsSci && sciKillerEnabled === "on") {
+      msg = `\u{1F916} **${killer}** eliminated a Scientist with *${weapon}*`;
+    } else if (isSciKillsPlayer && sciVictimEnabled === "on") {
+      msg = `\u{1F916} **${victim}** was eliminated by a Scientist with *${weapon}*`;
+    } else if (isPlayerKillsMisc && miscKills === "on") {
+      msg = `\u{1F43A} **${killer}** killed **${victim}** with *${weapon}*`;
+    } else if (isMiscKillsPlayer && miscKills === "on") {
+      msg = `\u{1F43A} **${victim}** was killed by **${killer}** with *${weapon}*`;
     }
-    await postToChannel(serverId, "killfeed", msg);
+
+    if (msg) await postToChannel(serverId, "killfeed", msg);
   }
 
+  // In-game kill feed
   if (gameEnabled === "on") {
     const server = await getServerInfo(serverId);
     if (server?.rcon_host) {
-      await sendGameSay(server, buildKillfeedGameMsg(killer, victim, weapon, isSuicide, isScientist));
+      const phrase = pickPhrase(customPhrase, randomize);
+      let gameMsg: string | null = null;
+
+      if (isSuicide) {
+        gameMsg = `<color=#4488FF>\u2620</color> <color=${killerColor}>${victim}</color> <color=${phraseColor}>met their own end</color>`;
+      } else if (isPlayerVsPlayer) {
+        gameMsg = `<color=#CC44FF>\u2620</color> <color=${killerColor}>${killer}</color> <color=${phraseColor}>${phrase}</color> <color=${victimColor}>${victim}</color> <color=#CC44FF>|</color> <color=#9944CC>${weapon}</color>`;
+      } else if (isPlayerKillsSci && sciKillerEnabled === "on") {
+        gameMsg = `<color=#CC44FF>\u25C6</color> <color=${killerColor}>${killer}</color> <color=${phraseColor}>${phrase}</color> <color=${victimColor}>a Scientist</color>`;
+      } else if (isSciKillsPlayer && sciVictimEnabled === "on") {
+        gameMsg = `<color=#CC44FF>\u25C6</color> <color=${victimColor}>${victim}</color> <color=${phraseColor}>was eliminated by</color> <color=${killerColor}>a Scientist</color>`;
+      } else if (isPlayerKillsMisc && miscKills === "on") {
+        gameMsg = `<color=#CC44FF>\u25C6</color> <color=${killerColor}>${killer}</color> <color=${phraseColor}>${phrase}</color> <color=${victimColor}>${victim}</color>`;
+      } else if (isMiscKillsPlayer && miscKills === "on") {
+        gameMsg = `<color=#CC44FF>\u25C6</color> <color=${victimColor}>${victim}</color> <color=${phraseColor}>was killed by</color> <color=${killerColor}>${killer}</color>`;
+      }
+
+      if (gameMsg) await sendGameSay(server, gameMsg);
     }
   }
 
-  if (isSuicide || isScientist) return;
+  // Scientist economy points (when player kills a scientist)
+  if (isPlayerKillsSci && sciKillerEnabled === "on") {
+    const sciPtsStr = await getConfig(serverId, "scientist_kill_points") ?? "0";
+    const sciPts = parseInt(sciPtsStr, 10) || 0;
+    if (sciPts > 0) {
+      try {
+        await db.ensureEconomy(serverId, killer);
+        await db.updateBalance(serverId, killer, sciPts);
+      } catch { /* player not linked */ }
+    }
+  }
+
+  // Only streaks + bounty + economy for true player vs player
+  if (isSuicide || !isPlayerVsPlayer) return;
 
   const abuseKey = `${killer}:${victim}`;
   const lastKill = killAntiAbuseMap.get(abuseKey);
