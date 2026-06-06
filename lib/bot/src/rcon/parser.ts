@@ -155,12 +155,41 @@ async function handleNoteLog(serverId: number, playerName: string, noteText: str
 const playerKillStreaks = new Map<string, { count: number; lastReset: number }>();
 const killAntiAbuseMap = new Map<string, number>();
 
+async function sendGameSay(server: db.ServerRow, msg: string): Promise<void> {
+  if (!server.rcon_host) return;
+  await rconManager.sendFireAndForget(
+    server.id, server.rcon_host, server.rcon_port!, server.rcon_password!,
+    `global.say "${msg}"`
+  ).catch(() => null);
+}
+
+function buildKillfeedGameMsg(killer: string, victim: string, weapon: string, isSuicide: boolean, isScientist: boolean): string {
+  if (isSuicide) {
+    return `<color=#4488FF>\u2620</color> <color=#FF3333>${victim}</color> <color=#4488FF>met their own end</color>`;
+  }
+  if (isScientist) {
+    return `<color=#CC44FF>\u25C6</color> <color=#FF3333>${killer}</color> <color=#4488FF>eliminated a Scientist</color>`;
+  }
+  return `<color=#CC44FF>\u2620</color> <color=#FF3333>${killer}</color> <color=#4488FF>killed</color> <color=#FF3333>${victim}</color> <color=#CC44FF>|</color> <color=#9944CC>${weapon}</color>`;
+}
+
+const STREAK_LABELS: Record<number, string> = {
+  5:  "\u2605 KILLING SPREE \u2605",
+  10: "\u2605\u2605 RAMPAGE \u2605\u2605",
+  15: "\u2605\u2605\u2605 UNSTOPPABLE \u2605\u2605\u2605",
+  20: "\u2620 GODLIKE \u2620",
+};
+
 async function handleKill(serverId: number, killer: string, victim: string, weapon: string): Promise<void> {
   const isSuicide = killer === victim;
   const isScientist = killer.toLowerCase().includes("scientist") || victim.toLowerCase().includes("scientist");
 
-  const killFeedEnabled = await getConfig(serverId, "KillFeedDiscord") ?? "on";
-  if (killFeedEnabled === "on") {
+  const [discordEnabled, gameEnabled] = await Promise.all([
+    getConfig(serverId, "KillFeedDiscord").then(v => v ?? "on"),
+    getConfig(serverId, "KillFeedGame").then(v => v ?? "off"),
+  ]);
+
+  if (discordEnabled === "on") {
     let msg: string;
     if (isSuicide) {
       msg = `\u{1F480} **${victim}** died to themselves with *${weapon}*`;
@@ -170,6 +199,13 @@ async function handleKill(serverId: number, killer: string, victim: string, weap
       msg = `\u2694\uFE0F **${killer}** took down **${victim}** with *${weapon}*`;
     }
     await postToChannel(serverId, "killfeed", msg);
+  }
+
+  if (gameEnabled === "on") {
+    const server = await getServerInfo(serverId);
+    if (server?.rcon_host) {
+      await sendGameSay(server, buildKillfeedGameMsg(killer, victim, weapon, isSuicide, isScientist));
+    }
   }
 
   if (isSuicide || isScientist) return;
@@ -192,15 +228,24 @@ async function handleKill(serverId: number, killer: string, victim: string, weap
 
   if ([5, 10, 15, 20].includes(streak.count)) {
     await postToChannel(serverId, "killfeed", `\u{1F525} **${killer}** is on a **${streak.count} kill streak!**`);
+
+    if (gameEnabled === "on") {
+      const server = await getServerInfo(serverId);
+      if (server?.rcon_host) {
+        const label = STREAK_LABELS[streak.count] ?? `${streak.count} KILL STREAK`;
+        const streakMsg = `<color=#CC44FF>${label}</color> <color=#FF3333>${killer}</color> <color=#4488FF>\u2014 ${streak.count} kills in a row!</color>`;
+        await sendGameSay(server, streakMsg);
+      }
+    }
   }
 
   const bountyEnabled = await getConfig(serverId, "BountySystem") ?? "off";
   if (bountyEnabled === "on") {
-    await handleBountyKill(serverId, killer, victim);
+    await handleBountyKill(serverId, killer, victim, gameEnabled);
   }
 }
 
-async function handleBountyKill(serverId: number, killer: string, victim: string): Promise<void> {
+async function handleBountyKill(serverId: number, killer: string, victim: string, gameEnabled = "off"): Promise<void> {
   const bounty = await db.getBounty(serverId, victim);
   if (bounty) {
     const rewardStr = await getConfig(serverId, "BountyReward") ?? "100";
@@ -212,6 +257,14 @@ async function handleBountyKill(serverId: number, killer: string, victim: string
     await db.updateBalance(serverId, killer, reward);
     await db.deactivateBounty(serverId, victim);
     await postToChannel(serverId, "killfeed", `\u{1F3AF} **${killer}** collected the bounty on **${victim}** and earned ${reward} coins!`);
+
+    if (gameEnabled === "on") {
+      const server = await getServerInfo(serverId);
+      if (server?.rcon_host) {
+        const bountyMsg = `<color=#CC44FF>\u25C6 BOUNTY CLAIMED \u25C6</color> <color=#FF3333>${killer}</color> <color=#4488FF>hunted down</color> <color=#FF3333>${victim}</color> <color=#CC44FF>+${reward} coins</color>`;
+        await sendGameSay(server, bountyMsg);
+      }
+    }
   }
 
   const minKillsStr = await getConfig(serverId, "BountyMinKills") ?? "5";
