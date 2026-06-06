@@ -102,14 +102,16 @@ export async function handleAddServer(interaction: ChatInputCommandInteraction):
   const label = interaction.options.getString("label") ?? `Server ${serverNum}`;
   const guildId = interaction.guild.id;
 
-  // Check subscription server limit
-  const allowedCount = await db.getSubscriptionServerCount(guildId);
+  // Check subscription server limit (skipped when BYPASS_SUB=true)
   const existingServers = await db.getServersByGuild(guildId);
-  if (existingServers.length >= allowedCount) {
-    await interaction.editReply({
-      content: `Your subscription allows **${allowedCount}** server${allowedCount === 1 ? "" : "s"}. You already have **${existingServers.length}** connected. Upgrade your plan at https://avivbot.com/pricing to add more servers.`,
-    });
-    return;
+  if (process.env["BYPASS_SUB"] !== "true") {
+    const allowedCount = await db.getSubscriptionServerCount(guildId);
+    if (existingServers.length >= allowedCount) {
+      await interaction.editReply({
+        content: `Your subscription allows **${allowedCount}** server${allowedCount === 1 ? "" : "s"}. You already have **${existingServers.length}** connected. Upgrade your plan at https://avivbot.com/pricing to add more servers.`,
+      });
+      return;
+    }
   }
 
   // Check if server number is already taken
