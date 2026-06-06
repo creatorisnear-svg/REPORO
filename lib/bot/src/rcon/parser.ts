@@ -71,9 +71,9 @@ const twoStepKits: Record<string, string> = {
 export function initParser(discordClient: DiscordClient): void {
   ctx = { discordClient, guilds: [] };
 
-  rconManager.onLog(async (rawLog: string, serverId: number) => {
+  rconManager.onLog(async (rawLog: string, serverId: number, type?: string) => {
     if (!ctx) return;
-    await handleLog(rawLog, serverId);
+    await handleLog(rawLog, serverId, type);
   });
 }
 
@@ -97,7 +97,42 @@ async function postToChannel(serverId: number, channelType: string, content: str
   } catch { /* channel not accessible */ }
 }
 
-async function handleLog(raw: string, serverId: number): Promise<void> {
+// Attempt to parse a kill event from a raw RCE log line.
+// RCE WebRCON may send kills in several formats depending on server version:
+//   [KILL] killer killed victim with weapon
+//   killer killed victim with weapon          (no prefix, Type may be "Kill" or "Generic")
+//   victim was killed by killer               (passive form, some RCE builds)
+//   victim was killed by weapon               (environmental, no named killer)
+function parseKillLine(raw: string): { killer: string; victim: string; weapon: string } | null {
+  // Format 1: [KILL] killer killed victim with weapon
+  const fmt1 = raw.match(/^\[KILL\]\s+(.+?)\s+killed\s+(.+?)\s+with\s+(.+)$/i);
+  if (fmt1) return { killer: fmt1[1]!.trim(), victim: fmt1[2]!.trim(), weapon: fmt1[3]!.trim() };
+
+  // Format 2: killer killed victim with weapon  (no prefix — used when Type="Kill" or bare Generic)
+  const fmt2 = raw.match(/^(.+?)\s+killed\s+(.+?)\s+with\s+(.+)$/i);
+  if (fmt2 && !raw.startsWith("[")) {
+    return { killer: fmt2[1]!.trim(), victim: fmt2[2]!.trim(), weapon: fmt2[3]!.trim() };
+  }
+
+  // Format 3: victim was killed by killer with weapon
+  const fmt3 = raw.match(/^(.+?)\s+was killed by\s+(.+?)\s+with\s+(.+)$/i);
+  if (fmt3) return { killer: fmt3[2]!.trim(), victim: fmt3[1]!.trim(), weapon: fmt3[3]!.trim() };
+
+  // Format 4: victim was killed by killer  (no weapon)
+  const fmt4 = raw.match(/^(.+?)\s+was killed by\s+(.+)$/i);
+  if (fmt4) return { killer: fmt4[2]!.trim(), victim: fmt4[1]!.trim(), weapon: "unknown" };
+
+  // Format 5: victim died (no killer listed — environmental)
+  const fmt5 = raw.match(/^(.+?)\s+died\b/i);
+  if (fmt5 && !raw.startsWith("[")) {
+    const name = fmt5[1]!.trim();
+    return { killer: name, victim: name, weapon: "unknown" };
+  }
+
+  return null;
+}
+
+async function handleLog(raw: string, serverId: number, type?: string): Promise<void> {
   const chatMatch = raw.match(/^\[CHAT\]\s+(.+?)\s*:\s*(.+)$/);
   if (chatMatch) {
     const [, playerName, message] = chatMatch;
@@ -105,10 +140,12 @@ async function handleLog(raw: string, serverId: number): Promise<void> {
     return;
   }
 
-  const killMatch = raw.match(/^\[KILL\]\s+(.+?)\s+killed\s+(.+?)\s+with\s+(.+)$/i);
-  if (killMatch) {
-    const [, killer, victim, weapon] = killMatch;
-    await handleKill(serverId, killer.trim(), victim.trim(), weapon.trim());
+  // Kill detection: try explicit [KILL] prefix first, then type-based, then flexible patterns
+  const isKillType = type === "Kill" || type === "kill";
+  const hasKillPrefix = raw.startsWith("[KILL]");
+  const killData = (hasKillPrefix || isKillType) ? parseKillLine(raw) : null;
+  if (killData) {
+    await handleKill(serverId, killData.killer, killData.victim, killData.weapon);
     return;
   }
 
@@ -127,7 +164,7 @@ async function handleLog(raw: string, serverId: number): Promise<void> {
   if (raw.includes("FREQUENCY_FIRED:")) {
     const freqMatch = raw.match(/FREQUENCY_FIRED:(\S+)/);
     if (freqMatch) {
-      await handleRaidAlert(serverId, freqMatch[1]);
+      await handleRaidAlert(serverId, freqMatch[1]!);
     }
   }
 
@@ -221,7 +258,7 @@ async function handleKill(serverId: number, killer: string, victim: string, weap
     combatLockEnabled, combatLockTime,
   ] = await Promise.all([
     getConfig(serverId, "KillFeedDiscord").then(v => v ?? "on"),
-    getConfig(serverId, "KillFeedGame").then(v => v ?? "off"),
+    getConfig(serverId, "KillFeedGame").then(v => v ?? "on"),
     getConfig(serverId, "MiscKills").then(v => v ?? "off"),
     getConfig(serverId, "ScientistKiller").then(v => v ?? "off"),
     getConfig(serverId, "ScientistVictim").then(v => v ?? "off"),

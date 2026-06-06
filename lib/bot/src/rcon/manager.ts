@@ -7,7 +7,7 @@ interface RconMessage {
   Stacktrace?: string;
 }
 
-type LogListener = (log: string, serverId: number) => void;
+type LogListener = (log: string, serverId: number, type?: string) => void;
 
 class RconConnection {
   private ws: WebSocket | null = null;
@@ -49,7 +49,8 @@ class RconConnection {
         try {
           const msg: RconMessage = JSON.parse(data.toString());
           if (msg.Identifier <= 0) {
-            for (const fn of this.logListeners) fn(msg.Message, this.serverId);
+            console.log(`[RCON:RAW] server=${this.serverId} type=${msg.Type} msg=${msg.Message.slice(0, 200)}`);
+            for (const fn of this.logListeners) fn(msg.Message, this.serverId, msg.Type);
           } else {
             const p = this.pending.get(msg.Identifier);
             if (p) {
