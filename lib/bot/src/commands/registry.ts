@@ -63,6 +63,7 @@ import { handleAdminChannels, handleAdminPositions, handleAdminScheduler } from 
 import { handleWipeClaims, handleWipeKills, handleWipeTpHome, handleWipeShopTimers, handleWipePositions, handleClearList, handleBanboom, handleUnbanboom, handleTimedrestart, handleDelayClaims, handleTriggerEvent, handleClearAnEvent, handleSetLeaderboard } from "./handlers/admin-wipe.js";
 import { handleStats, handleProfile, handleTopkillers, handleScratch } from "./handlers/player.js";
 import { handleSet, autocompleteSet, handleConfigs } from "./handlers/configs.js";
+import { handleRconLog } from "./handlers/rconlog.js";
 
 function serverOption(cmd: SlashCommandBuilder) {
   return cmd.addIntegerOption(o =>
@@ -106,6 +107,19 @@ export const commands: Command[] = [
   {
     data: new SlashCommandBuilder().setName("diag").setDescription("Diagnostics: RCON health, ping, and status"),
     execute: handleDiag,
+  },
+  {
+    data: serverOption(new SlashCommandBuilder().setName("rcon-log").setDescription("View the last raw RCON messages received from the server (admin only)")
+      .addIntegerOption(o => o.setName("count").setDescription("Number of entries to show (max 50, default 30)").setRequired(false).setMinValue(1).setMaxValue(50))
+      .addStringOption(o => o.setName("filter").setDescription("Filter by message type").setRequired(false)
+        .addChoices(
+          { name: "Kill events", value: "Kill" },
+          { name: "Chat messages", value: "Chat" },
+          { name: "Generic / console", value: "Generic" },
+          { name: "Errors", value: "Error" },
+          { name: "Warnings", value: "Warning" },
+        )) as SlashCommandBuilder),
+    execute: handleRconLog,
   },
   {
     data: new SlashCommandBuilder().setName("admin-channels").setDescription("Reassign Discord channel feeds")

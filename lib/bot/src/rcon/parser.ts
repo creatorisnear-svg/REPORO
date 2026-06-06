@@ -10,6 +10,21 @@ interface ParseContext {
 
 let ctx: ParseContext | null = null;
 
+// Circular buffer of the last 75 raw RCON messages per server for /rcon-log
+const RCON_LOG_MAX = 75;
+const rconLogBuffer = new Map<number, Array<{ ts: number; type: string; msg: string }>>();
+
+export function getRconLogBuffer(serverId: number): Array<{ ts: number; type: string; msg: string }> {
+  return rconLogBuffer.get(serverId) ?? [];
+}
+
+function pushRconLog(serverId: number, type: string, msg: string): void {
+  if (!rconLogBuffer.has(serverId)) rconLogBuffer.set(serverId, []);
+  const buf = rconLogBuffer.get(serverId)!;
+  buf.push({ ts: Date.now(), type, msg });
+  if (buf.length > RCON_LOG_MAX) buf.shift();
+}
+
 // In-memory state for two-step flows
 const zorpPending = new Map<string, { step: number; timestamp: number }>();
 const tpHomePending = new Map<string, number>(); // ingameName -> timestamp
@@ -73,6 +88,7 @@ export function initParser(discordClient: DiscordClient): void {
 
   rconManager.onLog(async (rawLog: string, serverId: number, type?: string) => {
     if (!ctx) return;
+    pushRconLog(serverId, type ?? "Generic", rawLog);
     await handleLog(rawLog, serverId, type);
   });
 }
