@@ -2,6 +2,7 @@ import type { Interaction } from "discord.js";
 import { commands } from "../commands/registry.js";
 import { handleAvivButton } from "../commands/handlers/setup.js";
 import { handleShopInteraction } from "../commands/handlers/shop.js";
+import { autocompleteServer } from "../commands/handlers/utils.js";
 
 function isShopInteraction(customId: string): boolean {
   return customId === "shop:srv" || customId.startsWith("shop:s");
@@ -9,6 +10,13 @@ function isShopInteraction(customId: string): boolean {
 
 export async function handleInteractionCreate(interaction: Interaction): Promise<void> {
   if (interaction.isAutocomplete()) {
+    const focused = interaction.options.getFocused(true);
+    // Shared server autocomplete: any command's "server" option triggers this
+    if (focused.name === "server") {
+      await autocompleteServer(interaction);
+      return;
+    }
+    // Fall through to command-specific autocomplete (e.g. /set config option)
     const cmd = commands.find(c => c.data.name === interaction.commandName);
     if (cmd?.autocomplete) {
       await cmd.autocomplete(interaction);

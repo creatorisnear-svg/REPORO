@@ -60,7 +60,7 @@ import { handleSet, autocompleteSet, handleConfigs } from "./handlers/configs.js
 
 function serverOption(cmd: SlashCommandBuilder) {
   return cmd.addIntegerOption(o =>
-    o.setName("server").setDescription("Server number (e.g. 1, 2, 3...)").setRequired(false).setMinValue(1)
+    o.setName("server").setDescription("Server number — type to search by name or number").setRequired(false).setAutocomplete(true)
   );
 }
 

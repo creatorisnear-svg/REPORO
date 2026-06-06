@@ -104,7 +104,8 @@ export async function handleAddServer(interaction: ChatInputCommandInteraction):
 
   // Check subscription server limit (skipped when BYPASS_SUB=true)
   const existingServers = await db.getServersByGuild(guildId);
-  if (process.env["BYPASS_SUB"] !== "true") {
+  const bypassSub = (process.env["BYPASS_SUB"] ?? "").trim().toLowerCase() === "true";
+  if (!bypassSub) {
     const allowedCount = await db.getSubscriptionServerCount(guildId);
     if (existingServers.length >= allowedCount) {
       await interaction.editReply({
@@ -140,12 +141,15 @@ export async function handleAddServer(interaction: ChatInputCommandInteraction):
     serverNumber: serverNum,
   });
 
-  try {
-    await rconManager.sendCommand(serverId, host, port, password, "status");
-    await interaction.editReply({ content: `Server ${serverNum} (${label}) added and RCON connection verified. ID: ${serverId}` });
-  } catch {
-    await interaction.editReply({ content: `Server ${serverNum} (${label}) added (ID: ${serverId}) but RCON connection failed. Check your host, port, and password.` });
-  }
+  // Reply with success immediately - RCON connection happens in background
+  await interaction.editReply({
+    content: `Server **${serverNum}** (${label}) added! ID: ${serverId}\nAttempting RCON connection in the background. Use \`/diag\` to check connection status.`,
+  });
+
+  // Fire-and-forget RCON test so it does not block or confuse the response
+  rconManager.sendCommand(serverId, host, port, password, "status").catch(err => {
+    console.warn(`[RCON] Initial connection test for server ${serverId} failed: ${err instanceof Error ? err.message : String(err)}`);
+  });
 }
 
 export async function handleRemoveServer(interaction: ChatInputCommandInteraction): Promise<void> {
