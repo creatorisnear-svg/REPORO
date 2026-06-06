@@ -220,6 +220,12 @@
   </div>
 </footer>
 
+<div id="dev-banner" style="display:none; position:fixed; bottom:1rem; right:1rem; z-index:9999;">
+  <a href="/auth/dev-login" style="display:flex;align-items:center;gap:0.5rem;background:#0e1419;border:1px solid #e07a32;border-radius:10px;padding:0.6rem 1rem;font-size:0.82rem;font-weight:700;color:#e07a32;text-decoration:none;letter-spacing:0.05em;box-shadow:0 4px 20px rgba(224,122,50,0.25);">
+    <span style="font-size:1rem;">&#128295;</span> DEV LOGIN
+  </a>
+</div>
+
 <script>
 function toggleMobileNav() {
   document.getElementById('mobileNav').classList.toggle('open');
@@ -231,6 +237,10 @@ document.addEventListener('click', function(e) {
     nav.classList.remove('open');
   }
 });
+// Show dev login button only in dev mode
+fetch('/auth/dev-mode').then(r => r.json()).then(d => {
+  if (d.devMode) document.getElementById('dev-banner').style.display = 'block';
+}).catch(() => {});
 </script>
 </body>
 </html>

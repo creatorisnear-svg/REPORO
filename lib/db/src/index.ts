@@ -203,6 +203,11 @@ export async function getServersByGuild(guildId: string): Promise<ServerRow[]> {
   return r.rows as unknown as ServerRow[];
 }
 
+export async function getAllServers(): Promise<ServerRow[]> {
+  const r = await db.execute({ sql: "SELECT * FROM servers WHERE active = 1", args: [] });
+  return r.rows as unknown as ServerRow[];
+}
+
 export async function getServerByGuildAndNumber(guildId: string, number: number): Promise<ServerRow | null> {
   const r = await db.execute({
     sql: "SELECT * FROM servers WHERE discord_guild_id = ? AND server_number = ? AND active = 1",
