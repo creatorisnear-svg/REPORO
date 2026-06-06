@@ -221,21 +221,63 @@ function setCurrency(c) {
 }
 
 async function doCheckout() {
-  const guildId = new URLSearchParams(window.location.search).get('guild') || 'unknown';
-  const discordUserId = new URLSearchParams(window.location.search).get('user') || 'unknown';
+  // Check if logged in with Discord first
+  let user = null;
+  try {
+    const me = await fetch('/auth/me');
+    if (me.ok) user = await me.json();
+  } catch {}
+
+  if (!user) {
+    // Save intended server count in session storage, redirect to login
+    sessionStorage.setItem('pendingServerCount', String(count));
+    window.location.href = '/auth/discord?next=/pricing';
+    return;
+  }
+
+  // If they have multiple guilds, show a guild picker
+  const adminGuilds = (user.guilds || []).filter(g => (g.permissions & 0x8) === 0x8 || (g.permissions & 0x20) === 0x20);
+  let guildId = new URLSearchParams(window.location.search).get('guild');
+  if (!guildId) {
+    if (adminGuilds.length === 0) {
+      alert("You don't have admin access to any Discord servers. Make sure you're an admin of the server you want to use Aviv Bot on.");
+      return;
+    }
+    if (adminGuilds.length === 1) {
+      guildId = adminGuilds[0].id;
+    } else {
+      // Show a simple picker
+      const names = adminGuilds.map((g, i) => `${i + 1}. ${g.name}`).join('\n');
+      const pick = prompt(`Which Discord server is this for?\n\n${names}\n\nEnter the number:`);
+      const idx = parseInt(pick) - 1;
+      if (isNaN(idx) || !adminGuilds[idx]) { alert('Invalid selection.'); return; }
+      guildId = adminGuilds[idx].id;
+    }
+  }
+
   try {
     const r = await fetch('/api/stripe/checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ planId: 'per-server', serverCount: count, guildId, discordUserId })
+      body: JSON.stringify({ planId: 'per-server', serverCount: count, guildId, discordUserId: user.id })
     });
     const d = await r.json();
     if (d.url) window.location.href = d.url;
     else alert('Error: ' + (d.error || 'Unknown error'));
-  } catch (e) {
-    alert('Failed to start checkout. Stripe may not be configured yet.');
+  } catch {
+    alert('Failed to start checkout. Please try again.');
   }
 }
+
+// Restore pending server count if redirected back after login
+(function() {
+  const pending = sessionStorage.getItem('pendingServerCount');
+  if (pending) {
+    count = Math.max(1, parseInt(pending) || 1);
+    sessionStorage.removeItem('pendingServerCount');
+    updateDisplay();
+  }
+})();
 
 function toggleMobileNav() {
   document.getElementById('mobileNav').classList.toggle('open');
