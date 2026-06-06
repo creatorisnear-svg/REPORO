@@ -236,7 +236,7 @@ async function handleJoin(serverId: number, playerName: string): Promise<void> {
       if (prisonPos.length > 0) {
         const pos = prisonPos[0];
         try {
-          await rconManager.sendFireAndForget(serverId, server.rcon_host, server.rcon_port!, server.rcon_password!, `global.teleportpos ${playerName} ${pos.x} ${pos.y} ${pos.z}`);
+          await rconManager.sendFireAndForget(serverId, server.rcon_host, server.rcon_port!, server.rcon_password!, `global.teleportpos ${pos.x},${pos.y},${pos.z} "${playerName}"`);
         } catch { /* rcon may not be connected */ }
       }
     }
@@ -490,7 +490,7 @@ async function handleKit(serverId: number, playerName: string, kitType: string):
 
   try {
     await rconManager.sendFireAndForget(serverId, server.rcon_host, server.rcon_port!, server.rcon_password!,
-      `kitmanager.kit "${playerName}" "${kitName}"`);
+      `kit givetoplayer "${kitName}" "${playerName}"`);
     await db.recordKitClaim(serverId, playerName, kitType);
   } catch (err) {
     await postToChannel(serverId, "errors", `Kit error for **${playerName}** (${kitType}): ${String(err)}`);
@@ -556,13 +556,13 @@ async function handleDirectionalTp(serverId: number, playerName: string, tpConfi
       await new Promise(r => setTimeout(r, 2000));
     }
     await rconManager.sendFireAndForget(serverId, server.rcon_host, server.rcon_port!, server.rcon_password!,
-      `global.teleportpos ${playerName} ${pos.x} ${pos.y} ${pos.z}`);
+      `global.teleportpos ${pos.x},${pos.y},${pos.z} "${playerName}"`);
 
     const giveKit = await getConfig(serverId, `${tpConfig}_usekit`) ?? "off";
     if (giveKit === "on") {
       const kitName = await getConfig(serverId, `${tpConfig}_kitname`) ?? "";
       if (kitName) {
-        await rconManager.sendFireAndForget(serverId, server.rcon_host, server.rcon_port!, server.rcon_password!, `kitmanager.kit "${playerName}" "${kitName}"`);
+        await rconManager.sendFireAndForget(serverId, server.rcon_host, server.rcon_port!, server.rcon_password!, `kit givetoplayer "${kitName}" "${playerName}"`);
       }
     }
   } catch { /* ignore */ }

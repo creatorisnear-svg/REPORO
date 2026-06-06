@@ -33,13 +33,7 @@ async function triggerEvent(client: Client, server: db.ServerRow, eventNum: numb
 
   const pos = positions[Math.floor(Math.random() * positions.length)];
 
-  let cmd: string;
-  if (eventType === "airdrop") {
-    cmd = `supply.call ${pos.x} ${pos.y} ${pos.z}`;
-  } else {
-    cmd = `supply.drop ${pos.x} ${pos.y} ${pos.z}`;
-  }
-
+  const cmd = eventType === "airdrop" ? "supply.call" : "supply.drop";
   await sendRcon(server, cmd);
 
   // Pick a random message from event{n}_msg1/2/3

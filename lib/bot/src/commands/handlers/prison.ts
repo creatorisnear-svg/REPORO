@@ -20,7 +20,7 @@ export async function handlePrison(interaction: ChatInputCommandInteraction): Pr
   if (positions.length > 0 && server.rcon_host) {
     const pos = positions[0];
     await rconManager.sendFireAndForget(server.id, server.rcon_host, server.rcon_port!, server.rcon_password!,
-      `global.teleportpos ${ingameName} ${pos.x} ${pos.y} ${pos.z}`).catch(() => null);
+      `global.teleportpos ${pos.x},${pos.y},${pos.z} "${ingameName}"`).catch(() => null);
   }
 
   // DM the linked player

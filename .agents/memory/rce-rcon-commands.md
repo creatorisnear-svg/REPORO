@@ -1,46 +1,38 @@
 ---
 name: RCE RCON commands
-description: Correct RCON command syntax for Rust Console Edition (RCE) servers used by Aviv Bot
+description: Correct RCON command syntax for Rust Console Edition (RCE) servers — verified from official GitBook docs
 ---
 
-## Confirmed RCE RCON Commands (verified from console screenshot)
+## Confirmed RCE RCON Commands (from official GitBook)
 
-**Kit delivery:** `kitmanager.kit "${playerName}" "${kitName}"` — NOT `kit.give`
+**Kit gifting to player:** `kit givetoplayer "kitname" "playerID"` — kitname FIRST, player second. NOT `kitmanager.kit` (that command only creates/edits kits, not gives them).
 
-**Permanent ban:** `global.ban "${name}" 0 "${reason}"` — 0 = permanent duration, global. prefix required
+**Teleport to position:** `global.teleportpos x,y,z "playerID"` — coordinates FIRST (comma-separated), then player. NOT player-first.
 
-**Temp ban:** `global.ban "${name}" ${hours} "${reason}"`
+**Kill player:** `global.killplayer "playerID"`
 
-**Kick:** `global.kick "${name}" "${reason}"`
+**Say in chat:** `global.say "message"` — Server Admin level, confirmed
 
-**Unban:** `global.unban "${name}"`
+**Kick:** `global.kick "playerID" "reason"`
 
-**Mute/unmute:** `global.mutechat "${name}"` / `global.unmutechat "${name}"`
+**Ban:** `global.ban "playerID" hours "reason"` — 0 = permanent
 
-**Teleport to position:** `global.teleportpos ${name} ${x} ${y} ${z}` — global. prefix required, no quotes on coords
+**Unban:** `global.unban "playerID"`
 
-**Kill player:** `global.killplayer ${name}` — NOT `kill`
+**Mute/unmute:** `global.mutechat "playerID"` / `global.unmutechat "playerID"`
 
-**Say in chat:** `global.say "message"` — global. prefix required
+**Supply airdrop:** `supply.call` — NO coordinates, takes no input
 
-**Give items:** `inventory.give "${name}" "${shortname}" ${amount}` — no global. prefix
+**Supply drop (crate):** `supply.drop` — NO coordinates, takes no input
 
-**Airdrop event:** `supply.call ${x} ${y} ${z}` — NOT `callairlift`
+**Trigger named event:** `events.triggerevent "event_airdrop"` / `events.triggerevent "event_helicopter"` etc.
 
-**Crate event:** `supply.drop ${x} ${y} ${z}` — NOT `spawnlootcrate`
+**Helicopter:** `heli.call` — no input
 
-**Helicopter:** `heli.call`
+**Cargo ship:** `cargoships.spawncargoship` — no input
 
-**Server quit/restart:** `quit`
+**Items page has no give-to-player command** — `inventory.give` / `inventory.giveto` not in official docs; use with caution (may work as undocumented commands from in-game console screenshots).
 
-**Unban all:** `unbanall`
+**Why:** Confirmed from official RCE GitBook pages pasted directly by the user (Player commands, Kit Management, Events, Tools, Items & Inventory pages).
 
-**ZORP:** `o.zorp create ${name}` / `o.zorp delete ${name}`
-
-**Recycler:** `spawnrecycler ${name}` — unverified, plugin-specific
-
-**Teleport to bed:** `teleport2bed ${name}` — unverified in RCE console screenshots
-
-**Why:** Confirmed from RCE server console screenshots shared by user. RCE requires `global.` prefix on most player management commands unlike PC Rust. Kit command is `kitmanager.kit` (plugin), supply events are `supply.call`/`supply.drop`.
-
-**How to apply:** Any new RCON command must use these exact prefixes. The `global.` prefix is required for kick/ban/unban/mute/unmute/teleportpos/say/killplayer. Items use `inventory.give` (no prefix). Kits use `kitmanager.kit` (no prefix).
+**How to apply:** Any new RCON command must follow these exact formats. Key traps: coords come before player in teleportpos; kit gifting is `kit givetoplayer` not `kitmanager.kit`; supply events take no arguments.

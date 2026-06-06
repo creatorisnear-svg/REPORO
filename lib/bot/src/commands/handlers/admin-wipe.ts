@@ -227,13 +227,7 @@ export async function handleTriggerEvent(interaction: ChatInputCommandInteractio
 
   const pos = positions[Math.floor(Math.random() * positions.length)];
 
-  let cmd: string;
-  if (eventType === "airdrop") {
-    cmd = `supply.call ${pos.x} ${pos.y} ${pos.z}`;
-  } else {
-    cmd = `supply.drop ${pos.x} ${pos.y} ${pos.z}`;
-  }
-
+  const cmd = eventType === "airdrop" ? "supply.call" : "supply.drop";
   const result = await sendRcon(server, cmd);
 
   const msgs = await Promise.all([1, 2, 3].map(n => db.getConfig(server.id, `event${eventNum}_msg${n}`)));

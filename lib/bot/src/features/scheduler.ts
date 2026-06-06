@@ -38,7 +38,7 @@ async function checkPrisonReleases(client: Client): Promise<void> {
           const pos = positions[0];
           await rconManager.sendFireAndForget(
             server.id, server.rcon_host, server.rcon_port!, server.rcon_password!,
-            `global.teleportpos ${prisoner.ingame_name} ${pos.x} ${pos.y} ${pos.z}`
+            `global.teleportpos ${pos.x},${pos.y},${pos.z} "${prisoner.ingame_name}"`
           ).catch(() => null);
         }
 
