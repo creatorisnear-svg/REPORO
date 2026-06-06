@@ -2,90 +2,235 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Aviv Bot - The Ultimate Rust Console Edition Discord Bot</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#060a0d" />
+  <title>Aviv Bot - Rust Console Edition Discord Bot</title>
+  <meta name="description" content="The all-in-one Discord bot for Rust Console Edition servers. Economy, kits, shop, gambling, ZORP, raid alerts, prison, kill feed, and more." />
   <link rel="stylesheet" href="/style.css" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
 </head>
 <body>
+<div class="grid-bg"></div>
+
 <nav>
-  <div class="nav-logo">&#9889; Aviv Bot</div>
+  <a href="/" class="nav-logo">AVIV <span>BOT</span></a>
   <ul class="nav-links">
-    <li><a href="/">Home</a></li>
+    <li><a href="/" class="active">Home</a></li>
     <li><a href="/pricing">Pricing</a></li>
     <li><a href="/docs">Docs</a></li>
     <li><a href="/status">Status</a></li>
   </ul>
-  <a href="/pricing" class="btn btn-primary">Get Started</a>
+  <a href="/pricing" class="btn btn-accent btn-sm nav-cta">Get Started</a>
+  <button class="nav-hamburger" onclick="toggleMobileNav()" aria-label="Menu">
+    <span></span><span></span><span></span>
+  </button>
 </nav>
 
+<div class="mobile-nav" id="mobileNav">
+  <a href="/">Home</a>
+  <a href="/pricing">Pricing</a>
+  <a href="/docs">Docs</a>
+  <a href="/status">Status</a>
+  <a href="/pricing" class="btn-accent">Get Started</a>
+</div>
+
 <section class="hero">
-  <span class="badge badge-accent">Rust Console Edition</span>
-  <h1>The only Discord bot your RCE server needs</h1>
-  <p>Economy, kits, ZORP, raid alerts, gambling, prison, moderation, kill feed, chat bridge, shop, bounties, and more. All in one bot.</p>
+  <div class="hero-badge">&#9889; Rust Console Edition</div>
+  <h1>The only bot your<br><em>RCE server</em> needs</h1>
+  <p>Economy, kits, shop, gambling, ZORP, raid alerts, prison, bounties, kill feed, chat bridge, moderation. All in one bot, connected to your server in real time.</p>
   <div class="hero-actions">
-    <a href="https://discord.com/oauth2/authorize?client_id=PLACEHOLDER&permissions=8&scope=bot%20applications.commands" class="btn btn-primary btn-lg">Add to Discord</a>
-    <a href="/docs" class="btn btn-outline btn-lg">View Docs</a>
+    <a href="https://discord.com/oauth2/authorize?client_id=PLACEHOLDER&permissions=8&scope=bot%20applications.commands" class="btn btn-accent btn-lg">Add to Discord</a>
+    <a href="/pricing" class="btn btn-outline btn-lg">View Pricing</a>
+  </div>
+  <div class="hero-stats">
+    <div class="hero-stat">
+      <span class="num">51+</span>
+      <span class="label">Slash Commands</span>
+    </div>
+    <div class="hero-stat">
+      <span class="num">Real-time</span>
+      <span class="label">RCON Bridge</span>
+    </div>
+    <div class="hero-stat">
+      <span class="num">$11</span>
+      <span class="label">Per Server / mo</span>
+    </div>
   </div>
 </section>
 
-<div class="features">
-  <div class="feature-card">
-    <div class="icon">&#128176;</div>
-    <h3>Economy System</h3>
-    <p>Full coin economy with daily rewards, leaderboards, transfers, kill points, and cross-server swaps.</p>
+<hr class="divider" />
+
+<section class="section">
+  <span class="section-label">Features</span>
+  <h2 class="section-title">Everything your server needs</h2>
+  <p class="section-sub">Built specifically for Rust Console Edition. Every feature connects directly to your game server through WebRCON.</p>
+
+  <div class="features-grid">
+    <div class="feature-card highlight">
+      <div class="feature-icon">&#127873;</div>
+      <h3>Kit Builder</h3>
+      <p>Create custom kits with items, quantities, and cooldowns. Deliver them to players via RCON directly from Discord with a single command.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">&#128176;</div>
+      <h3>Economy System</h3>
+      <p>Full coin economy with daily rewards, leaderboards, transfers, kill points, and cross-server coin swaps.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">&#128268;</div>
+      <h3>WebRCON Bridge</h3>
+      <p>Real-time WebSocket RCON connection with auto-reconnect, idle drop, and persistent session management.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">&#128680;</div>
+      <h3>Raid Alerts</h3>
+      <p>Automatic DM notifications when a player's base broadcaster fires. Per-player opt-in frequency registration.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">&#127922;</div>
+      <h3>Gambling</h3>
+      <p>Bandit wheel, coinflip, and blackjack with configurable max bet, fair odds, and admin controls.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">&#128481;</div>
+      <h3>ZORP Integration</h3>
+      <p>Full ZORP zone management with allow/ban lists, wipe commands, and automatic expiry tracking.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">&#128274;</div>
+      <h3>Prison System</h3>
+      <p>Teleport players to a prison location with timed releases, DM notifications, and mod logs.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">&#128250;</div>
+      <h3>Kill Feed</h3>
+      <p>Parsed real-time kill feed posted to Discord with custom colors, phrases, and scientist kill tracking.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">&#128722;</div>
+      <h3>Shop System</h3>
+      <p>Multi-category Discord shop with stock control, timers, kit bundles, and wipe delay support.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">&#128172;</div>
+      <h3>Chat Bridge</h3>
+      <p>Bi-directional chat relay between Discord and your Rust server. Players see Discord messages in-game.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">&#128737;</div>
+      <h3>Moderation</h3>
+      <p>Kick, ban, mute, and warn players directly from Discord. Full audit logs and warning history.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">&#128205;</div>
+      <h3>Teleports</h3>
+      <p>Admin-configurable teleport positions with cooldowns. Directional TPs, prison, and custom locations.</p>
+    </div>
   </div>
-  <div class="feature-card">
-    <div class="icon">&#127873;</div>
-    <h3>Kits and Shop</h3>
-    <p>Give kits via RCON, run a multi-category Discord shop with timers, stock control, and kit bundles.</p>
+</section>
+
+<hr class="divider" />
+
+<section class="section">
+  <span class="section-label">Kit Builder</span>
+  <h2 class="section-title">Build kits from Discord</h2>
+  <p class="section-sub">Create, manage, and deliver kits to players without ever touching the game console.</p>
+
+  <div class="kit-builder-section">
+    <div>
+      <h3 style="font-family:'Rajdhani',sans-serif; font-size:1.5rem; font-weight:700; color:var(--white); margin-bottom:0.75rem;">Kits that work the way you want</h3>
+      <p style="color:var(--muted2); font-size:0.95rem; margin-bottom:1.25rem; line-height:1.7;">Use <code>/givekit</code> to push any configured kit directly to a player through your live RCON connection. Set per-server kit configs, tie kits to your shop, or auto-deliver them on join, wipe day, or VIP purchase.</p>
+      <ul style="list-style:none; display:flex; flex-direction:column; gap:0.6rem;">
+        <li style="display:flex; align-items:center; gap:0.6rem; font-size:0.88rem; color:var(--muted2);"><span style="color:var(--accent); font-weight:700;">&#10003;</span> Free, VIP, and Elite kit tiers</li>
+        <li style="display:flex; align-items:center; gap:0.6rem; font-size:0.88rem; color:var(--muted2);"><span style="color:var(--accent); font-weight:700;">&#10003;</span> Configurable cooldowns per kit</li>
+        <li style="display:flex; align-items:center; gap:0.6rem; font-size:0.88rem; color:var(--muted2);"><span style="color:var(--accent); font-weight:700;">&#10003;</span> Sell kits in the shop with prices</li>
+        <li style="display:flex; align-items:center; gap:0.6rem; font-size:0.88rem; color:var(--muted2);"><span style="color:var(--accent); font-weight:700;">&#10003;</span> Admin override to give any kit instantly</li>
+        <li style="display:flex; align-items:center; gap:0.6rem; font-size:0.88rem; color:var(--muted2);"><span style="color:var(--accent); font-weight:700;">&#10003;</span> Works across multiple Rust servers</li>
+      </ul>
+    </div>
+    <div class="kit-builder-demo">
+      <div class="kit-demo-header">
+        <div class="kit-demo-dot red"></div>
+        <div class="kit-demo-dot yellow"></div>
+        <div class="kit-demo-dot green"></div>
+        <span style="margin-left:0.5rem;">/givekit</span>
+      </div>
+      <div class="kit-demo-body">
+        <div style="font-size:0.72rem; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:var(--muted); margin-bottom:0.25rem; padding:0 0.25rem;">Starter Kit</div>
+        <div class="kit-item">
+          <span class="kit-name">Stone Hatchet</span>
+          <span class="kit-qty">x1</span>
+          <span class="kit-tag">Tool</span>
+        </div>
+        <div class="kit-item">
+          <span class="kit-name">Cooked Meat</span>
+          <span class="kit-qty">x10</span>
+          <span class="kit-tag">Food</span>
+        </div>
+        <div class="kit-item">
+          <span class="kit-name">Bandage</span>
+          <span class="kit-qty">x5</span>
+          <span class="kit-tag">Medical</span>
+        </div>
+        <div style="font-size:0.72rem; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:var(--muted); margin:0.75rem 0 0.25rem; padding:0 0.25rem;">VIP Kit</div>
+        <div class="kit-item">
+          <span class="kit-name">AK-47</span>
+          <span class="kit-qty">x1</span>
+          <span class="kit-tag">VIP</span>
+        </div>
+        <div class="kit-item">
+          <span class="kit-name">Ammo 5.56</span>
+          <span class="kit-qty">x120</span>
+          <span class="kit-tag">VIP</span>
+        </div>
+        <div style="padding:0.6rem 0.25rem;">
+          <div style="font-size:0.75rem; color:var(--teal);">&#10003; Delivered via RCON to player</div>
+        </div>
+      </div>
+    </div>
   </div>
-  <div class="feature-card">
-    <div class="icon">&#128481;&#65039;</div>
-    <h3>ZORP Integration</h3>
-    <p>Full ZORP zone management with allow/ban lists, wipe commands, and automatic zone cleanup.</p>
-  </div>
-  <div class="feature-card">
-    <div class="icon">&#128680;</div>
-    <h3>Raid Alerts</h3>
-    <p>Automatic DM notifications when a player's base is being raided. Per-player opt-in toggle.</p>
-  </div>
-  <div class="feature-card">
-    <div class="icon">&#127922;</div>
-    <h3>Gambling</h3>
-    <p>Bandit wheel, coinflip, and blackjack with configurable max bet and fair odds.</p>
-  </div>
-  <div class="feature-card">
-    <div class="icon">&#128268;</div>
-    <h3>WebRCON Bridge</h3>
-    <p>Real-time WebSocket RCON connection with auto-reconnect, parsed kill feed, and chat bridge.</p>
-  </div>
-  <div class="feature-card">
-    <div class="icon">&#128274;</div>
-    <h3>Prison System</h3>
-    <p>Teleport players to a prison location with timed releases, DM notifications, and mod logs.</p>
-  </div>
-  <div class="feature-card">
-    <div class="icon">&#128737;&#65039;</div>
-    <h3>Moderation</h3>
-    <p>Kick, ban, mute, warn players directly from Discord with full audit logs.</p>
-  </div>
-  <div class="feature-card">
-    <div class="icon">&#128250;</div>
-    <h3>Kill Feed</h3>
-    <p>Parsed real-time kill feed with customizable colors, phrases, and scientist kill tracking.</p>
+</section>
+
+<div class="cta-band">
+  <h2>Ready to upgrade your server?</h2>
+  <p>Join Rust Console Edition communities already running Aviv Bot.</p>
+  <div style="display:flex; gap:0.75rem; justify-content:center; flex-wrap:wrap;">
+    <a href="/pricing" class="btn btn-accent btn-lg">See Pricing</a>
+    <a href="/docs" class="btn btn-outline btn-lg">Read the Docs</a>
   </div>
 </div>
 
-<section style="text-align:center; padding: 3rem 2rem;">
-  <h2 style="font-size: 1.8rem; margin-bottom: 1rem;">Ready to upgrade your server?</h2>
-  <p style="color: var(--muted); margin-bottom: 1.5rem;">Join servers already using Aviv Bot today.</p>
-  <a href="/pricing" class="btn btn-primary btn-lg">View Pricing</a>
-</section>
-
 <footer>
-  <p>Aviv Bot &copy; 2025 - Built for Rust Console Edition communities</p>
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <div class="nav-logo">AVIV <span>BOT</span></div>
+      <p>The all-in-one Discord bot built for Rust Console Edition server communities.</p>
+    </div>
+    <div class="footer-links">
+      <a href="/">Home</a>
+      <a href="/pricing">Pricing</a>
+      <a href="/docs">Docs</a>
+      <a href="/status">Status</a>
+      <a href="/privacy">Privacy Policy</a>
+      <a href="/terms">Terms of Service</a>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <p>Aviv Bot &copy; 2025. Built for Rust Console Edition communities.</p>
+    <p><a href="/privacy">Privacy</a> &nbsp;&middot;&nbsp; <a href="/terms">Terms</a></p>
+  </div>
 </footer>
+
+<script>
+function toggleMobileNav() {
+  document.getElementById('mobileNav').classList.toggle('open');
+}
+document.addEventListener('click', function(e) {
+  const nav = document.getElementById('mobileNav');
+  const btn = document.querySelector('.nav-hamburger');
+  if (!nav.contains(e.target) && !btn.contains(e.target)) {
+    nav.classList.remove('open');
+  }
+});
+</script>
 </body>
 </html>

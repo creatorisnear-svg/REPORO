@@ -2,106 +2,246 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#060a0d" />
   <title>Pricing - Aviv Bot</title>
+  <meta name="description" content="Simple per-server pricing for Aviv Bot. $11 per server per month, with volume discounts as you scale." />
   <link rel="stylesheet" href="/style.css" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
 </head>
 <body>
+<div class="grid-bg"></div>
+
 <nav>
-  <div class="nav-logo">&#9889; Aviv Bot</div>
+  <a href="/" class="nav-logo">AVIV <span>BOT</span></a>
   <ul class="nav-links">
     <li><a href="/">Home</a></li>
-    <li><a href="/pricing">Pricing</a></li>
+    <li><a href="/pricing" class="active">Pricing</a></li>
     <li><a href="/docs">Docs</a></li>
     <li><a href="/status">Status</a></li>
   </ul>
-  <a href="/pricing" class="btn btn-primary">Get Started</a>
+  <a href="/pricing" class="btn btn-accent btn-sm nav-cta">Get Started</a>
+  <button class="nav-hamburger" onclick="toggleMobileNav()" aria-label="Menu">
+    <span></span><span></span><span></span>
+  </button>
 </nav>
 
-<section class="section">
-  <h2 class="section-title">Simple, transparent pricing</h2>
-  <p class="section-sub">No hidden fees. Cancel any time. All plans include the full feature set.</p>
+<div class="mobile-nav" id="mobileNav">
+  <a href="/">Home</a>
+  <a href="/pricing">Pricing</a>
+  <a href="/docs">Docs</a>
+  <a href="/status">Status</a>
+  <a href="/pricing" class="btn-accent">Get Started</a>
+</div>
 
-  <div class="pricing-grid">
-    <div class="pricing-card">
-      <div>
-        <h3>Basic</h3>
-        <div class="price">$9<span>/mo</span></div>
-        <p style="color:var(--muted); font-size:0.9rem;">Perfect for small communities</p>
+<section class="section" style="padding-top:4rem; padding-bottom:2rem;">
+  <span class="section-label">Pricing</span>
+  <h2 class="section-title">Configure your package</h2>
+  <p class="section-sub">One plan. All features. Pay per server. More servers, lower rate.</p>
+</section>
+
+<section class="section" style="padding-top:0;">
+  <div class="pricing-wrapper">
+    <div class="pricing-calculator">
+      <div class="pricing-header">
+        <span class="pricing-header-label">Configure Package</span>
       </div>
-      <ul>
-        <li>1 Rust server</li>
-        <li>Economy system</li>
-        <li>Kits and lists</li>
-        <li>Moderation commands</li>
-        <li>Kill feed</li>
-        <li>Chat bridge</li>
-      </ul>
-      <a href="#" class="btn btn-outline" onclick="checkout('basic')">Get Basic</a>
+      <div class="pricing-body">
+        <p class="server-question">How many Rust servers will connect to Aviv Bot?</p>
+
+        <div class="server-counter">
+          <button class="counter-btn" onclick="changeCount(-1)" aria-label="Decrease">&#8722;</button>
+          <div class="counter-display">
+            <span class="counter-num" id="serverCount">1</span>
+            <span class="counter-label" id="serverLabel">SERVER</span>
+          </div>
+          <button class="counter-btn" onclick="changeCount(1)" aria-label="Increase">+</button>
+        </div>
+
+        <div class="price-display">
+          <span class="price-main" id="totalPrice">$11.00<span class="asterisk">*</span></span>
+          <div class="price-billing">PER MONTH &middot; BILLED MONTHLY</div>
+          <div class="currency-tabs">
+            <button class="currency-tab" onclick="setCurrency('GBP')" id="tab-GBP">
+              <span class="sym">&#163;</span>
+              <span class="code">GBP</span>
+            </button>
+            <button class="currency-tab active" onclick="setCurrency('USD')" id="tab-USD">
+              <span class="sym">$</span>
+              <span class="code">USD</span>
+            </button>
+            <button class="currency-tab" onclick="setCurrency('EUR')" id="tab-EUR">
+              <span class="sym">&#8364;</span>
+              <span class="code">EUR</span>
+            </button>
+          </div>
+          <div class="price-per-server">
+            <span id="perServerLabel">$11.00* per server</span>
+          </div>
+          <div class="price-save" id="saveBadge" style="display:none;"></div>
+        </div>
+      </div>
+      <div class="pricing-cta">
+        <button class="btn btn-accent btn-lg btn-full" onclick="doCheckout()">
+          Get Started
+        </button>
+        <p class="pricing-note">* Prices are approximate. Final charge is in USD. GBP and EUR rates are indicative and may vary slightly at checkout. Cancel any time. No contracts.</p>
+      </div>
     </div>
 
-    <div class="pricing-card featured">
-      <div>
-        <span class="badge badge-accent" style="margin-bottom:0.5rem; display:inline-block;">Most Popular</span>
-        <h3>Pro</h3>
-        <div class="price">$19<span>/mo</span></div>
-        <p style="color:var(--muted); font-size:0.9rem;">For growing servers</p>
-      </div>
-      <ul>
-        <li>Up to 3 Rust servers</li>
-        <li>Everything in Basic</li>
-        <li>Shop system</li>
-        <li>Gambling (spin, coinflip, blackjack)</li>
-        <li>ZORP integration</li>
-        <li>Prison system</li>
-        <li>Raid alerts</li>
-        <li>Bounties</li>
-        <li>SRP</li>
-      </ul>
-      <a href="#" class="btn btn-primary" onclick="checkout('pro')">Get Pro</a>
+    <div style="margin-top:2rem; background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:1.75rem;">
+      <div style="font-size:0.7rem; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:var(--muted); margin-bottom:1rem;">Volume Discounts</div>
+      <div style="display:flex; flex-direction:column; gap:0.5rem;" id="tierTable"></div>
     </div>
 
-    <div class="pricing-card">
-      <div>
-        <h3>Enterprise</h3>
-        <div class="price">$39<span>/mo</span></div>
-        <p style="color:var(--muted); font-size:0.9rem;">For large networks</p>
+    <div style="margin-top:1.5rem; background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:1.75rem;">
+      <div style="font-size:0.7rem; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:var(--muted); margin-bottom:1rem;">Every Plan Includes</div>
+      <div class="features-list">
+        <div class="features-list-item">Economy system</div>
+        <div class="features-list-item">Kit builder</div>
+        <div class="features-list-item">Shop system</div>
+        <div class="features-list-item">Gambling (3 games)</div>
+        <div class="features-list-item">ZORP integration</div>
+        <div class="features-list-item">Raid alerts</div>
+        <div class="features-list-item">Prison system</div>
+        <div class="features-list-item">Bounty system</div>
+        <div class="features-list-item">Kill feed</div>
+        <div class="features-list-item">Chat bridge</div>
+        <div class="features-list-item">Moderation tools</div>
+        <div class="features-list-item">SRP system</div>
+        <div class="features-list-item">Teleports</div>
+        <div class="features-list-item">Player linking</div>
+        <div class="features-list-item">WebRCON bridge</div>
+        <div class="features-list-item">51+ slash commands</div>
       </div>
-      <ul>
-        <li>Unlimited Rust servers</li>
-        <li>Everything in Pro</li>
-        <li>Priority RCON</li>
-        <li>Custom currency branding</li>
-        <li>Priority support</li>
-        <li>Custom feature requests</li>
-      </ul>
-      <a href="#" class="btn btn-outline" onclick="checkout('enterprise')">Get Enterprise</a>
     </div>
   </div>
 </section>
 
+<div class="cta-band" style="margin-top:2rem;">
+  <h2>Questions about pricing?</h2>
+  <p>Join our Discord and ask in the support channel.</p>
+  <a href="https://discord.gg/avivbot" class="btn btn-accent btn-lg">Join Discord</a>
+</div>
+
 <footer>
-  <p>Aviv Bot &copy; 2025 - Built for Rust Console Edition communities</p>
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <div class="nav-logo">AVIV <span>BOT</span></div>
+      <p>The all-in-one Discord bot built for Rust Console Edition server communities.</p>
+    </div>
+    <div class="footer-links">
+      <a href="/">Home</a>
+      <a href="/pricing">Pricing</a>
+      <a href="/docs">Docs</a>
+      <a href="/status">Status</a>
+      <a href="/privacy">Privacy Policy</a>
+      <a href="/terms">Terms of Service</a>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <p>Aviv Bot &copy; 2025. Built for Rust Console Edition communities.</p>
+    <p><a href="/privacy">Privacy</a> &nbsp;&middot;&nbsp; <a href="/terms">Terms</a></p>
+  </div>
 </footer>
 
 <script>
-async function checkout(plan) {
+const TIERS = [
+  { min: 1,  max: 1,  rateUSD: 11.00 },
+  { min: 2,  max: 4,  rateUSD: 10.50 },
+  { min: 5,  max: 9,  rateUSD: 10.00 },
+  { min: 10, max: 19, rateUSD: 9.50  },
+  { min: 20, max: 99, rateUSD: 9.00  },
+];
+
+const RATES = { USD: 1.0, GBP: 0.79, EUR: 0.92 };
+const SYMBOLS = { USD: '$', GBP: '\u00a3', EUR: '\u20ac' };
+
+let count = 1;
+let currency = 'USD';
+const MAX = 50;
+
+function getRateForCount(n) {
+  for (const t of TIERS) {
+    if (n >= t.min && n <= t.max) return t.rateUSD;
+  }
+  return TIERS[TIERS.length - 1].rateUSD;
+}
+
+function fmt(usd) {
+  const val = usd * RATES[currency];
+  return SYMBOLS[currency] + val.toFixed(2);
+}
+
+function updateDisplay() {
+  const rateUSD = getRateForCount(count);
+  const totalUSD = rateUSD * count;
+  const singleUSD = TIERS[0].rateUSD;
+  const savingUSD = (singleUSD * count) - totalUSD;
+
+  document.getElementById('serverCount').textContent = count;
+  document.getElementById('serverLabel').textContent = count === 1 ? 'SERVER' : 'SERVERS';
+  document.getElementById('totalPrice').innerHTML = fmt(totalUSD) + '<span class="asterisk">*</span>';
+  document.getElementById('perServerLabel').innerHTML = '<span>' + fmt(rateUSD) + '*</span> per server';
+
+  const saveBadge = document.getElementById('saveBadge');
+  if (count > 1 && savingUSD > 0.005) {
+    saveBadge.style.display = 'block';
+    saveBadge.textContent = 'SAVE ' + fmt(savingUSD) + '*/MONTH VS INDIVIDUAL SERVERS';
+  } else {
+    saveBadge.style.display = 'none';
+  }
+
+  buildTierTable();
+}
+
+function buildTierTable() {
+  const el = document.getElementById('tierTable');
+  el.innerHTML = TIERS.map(t => {
+    const active = count >= t.min && count <= t.max;
+    const label = t.min === t.max ? t.min + ' server' : t.min + (t.max === 99 ? '+' : '-' + t.max) + ' servers';
+    return '<div style="display:flex; justify-content:space-between; align-items:center; padding:0.5rem 0.75rem; border-radius:6px; border:1px solid ' +
+      (active ? 'rgba(224,122,50,0.35)' : 'var(--border)') +
+      '; background:' + (active ? 'var(--accent-dim)' : 'var(--surface2)') + ';">' +
+      '<span style="font-size:0.88rem; color:' + (active ? 'var(--white)' : 'var(--muted2)') + ';">' + label + '</span>' +
+      '<span style="font-size:0.88rem; font-weight:700; color:' + (active ? 'var(--accent)' : 'var(--muted2)') + ';">' + fmt(t.rateUSD) + '*/server</span>' +
+      '</div>';
+  }).join('');
+}
+
+function changeCount(delta) {
+  count = Math.max(1, Math.min(MAX, count + delta));
+  updateDisplay();
+}
+
+function setCurrency(c) {
+  currency = c;
+  document.querySelectorAll('.currency-tab').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-' + c).classList.add('active');
+  updateDisplay();
+}
+
+async function doCheckout() {
   const guildId = new URLSearchParams(window.location.search).get('guild') || 'unknown';
   const discordUserId = new URLSearchParams(window.location.search).get('user') || 'unknown';
   try {
     const r = await fetch('/api/stripe/checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ planId: plan, guildId, discordUserId })
+      body: JSON.stringify({ planId: 'per-server', serverCount: count, guildId, discordUserId })
     });
     const d = await r.json();
     if (d.url) window.location.href = d.url;
     else alert('Error: ' + (d.error || 'Unknown error'));
   } catch (e) {
-    alert('Failed to create checkout session. Stripe may not be configured yet.');
+    alert('Failed to start checkout. Stripe may not be configured yet.');
   }
 }
+
+function toggleMobileNav() {
+  document.getElementById('mobileNav').classList.toggle('open');
+}
+
+updateDisplay();
 </script>
 </body>
 </html>

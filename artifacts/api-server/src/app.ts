@@ -55,6 +55,8 @@ app.get("/status", (_req, res) => res.sendFile(path.join(publicDir, "status.html
 app.get("/success", (_req, res) => res.sendFile(path.join(publicDir, "setup.html")));
 app.get("/setup-wizard", (_req, res) => res.sendFile(path.join(publicDir, "setup-wizard.html")));
 app.get("/dashboard", (_req, res) => res.sendFile(path.join(publicDir, "dashboard.html")));
+app.get("/privacy", (_req, res) => res.sendFile(path.join(publicDir, "privacy.html")));
+app.get("/terms", (_req, res) => res.sendFile(path.join(publicDir, "terms.html")));
 
 app.use("/auth", authRouter);
 app.use("/api", router);
