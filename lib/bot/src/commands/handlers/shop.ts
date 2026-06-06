@@ -34,6 +34,18 @@ function clearBasket(userId: string, guildId: string) { baskets.delete(basketKey
 // ---- Shop closed: keyed by guildId ----
 const shopClosed = new Map<string, number>();
 
+// ---- Pending deliveries: one-time claim tokens ----
+interface PendingDelivery {
+  server: db.ServerRow;
+  ingameName: string;
+  items: Array<{ product: db.ShopProductRow; qty: number }>;
+  totalCost: number;
+  currency: string;
+  guildId: string;
+  userId: string;
+}
+const pendingDeliveries = new Map<string, PendingDelivery>();
+
 // ---- Helpers ----
 function isKit(shortname: string) { return shortname.startsWith("kit:"); }
 function kitName(shortname: string) { return shortname.slice(4); }
@@ -217,6 +229,12 @@ export async function handleShopInteraction(
   interaction: StringSelectMenuInteraction | ButtonInteraction
 ): Promise<void> {
   const id = interaction.customId;
+
+  // One-time delivery claim: shop:claim:<claimId>
+  if (id.startsWith("shop:claim:") && interaction.isButton()) {
+    await deliverClaim(interaction);
+    return;
+  }
 
   // Category select: shop:g<guildId>:cats — value = "<catId>"
   const catsMatch = id.match(/^shop:g(\d+):cats$/);
@@ -470,7 +488,92 @@ async function completePurchase(interaction: ButtonInteraction, guildId: string)
     return;
   }
 
+  // Deduct balance and record stock/cooldown for each item
   await db.updateBalance(server.id, ingameName, -totalCost);
+  for (const { product, qty } of items) {
+    if (product.stock !== -1) await db.decrementShopStock(product.id, qty).catch(() => null);
+    await db.recordShopPurchase(server.id, ingameName, product.id).catch(() => null);
+  }
+
+  clearBasket(interaction.user.id, guildId);
+  const newBalance = await db.getBalance(server.id, ingameName);
+
+  // Log to cmd-logs
+  if (interaction.guild) {
+    const logsChannelId = await db.getChannel(server.id, "cmd-logs").catch(() => null);
+    if (logsChannelId) {
+      const ch = interaction.guild.channels.cache.get(logsChannelId);
+      if (ch && ch.isTextBased()) {
+        const summary = items.map(i => `${i.qty}x ${i.product.name}`).join(", ");
+        await ch.send(
+          `[SHOP] ${interaction.user.tag} purchased ${summary} for ${totalCost} ${currency} | In-game: ${ingameName} | Server ${server.server_number}`
+        ).catch(() => null);
+      }
+    }
+  }
+
+  // Store a one-time delivery token — RCON fires when player clicks Deliver Now
+  const claimId = `${interaction.user.id}.${Date.now()}.${Math.random().toString(36).slice(2)}`;
+  pendingDeliveries.set(claimId, {
+    server, ingameName, items, totalCost, currency,
+    guildId, userId: interaction.user.id,
+  });
+  // Auto-expire after 2 hours to prevent stale entries
+  setTimeout(() => pendingDeliveries.delete(claimId), 2 * 3600_000);
+
+  const itemLines = items.map(i => `• **${i.qty}x ${i.product.name}**`).join("\n");
+  const embed = new EmbedBuilder()
+    .setTitle("\u{1F6D2} Purchase Confirmed")
+    .setColor(0x3dba8c)
+    .setDescription(
+      `**Items purchased:**\n${itemLines}\n\n` +
+      `**Cost:** ${totalCost} ${currency}\n` +
+      `**Balance:** ${balance} \u2192 ${newBalance} ${currency}\n\n` +
+      `Make sure you are **in-game**, then click **Deliver Now** to receive your items.\n` +
+      `*(Button expires in 2 hours)*`
+    )
+    .setFooter({ text: `Server ${server.server_number}: ${server.server_label}` });
+
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`shop:claim:${claimId}`)
+      .setLabel("\u{1F4E6} Deliver Now")
+      .setStyle(ButtonStyle.Primary)
+  );
+
+  await interaction.update({ embeds: [embed], components: [row] });
+}
+
+// ---- One-time delivery claim handler ----
+
+async function deliverClaim(interaction: ButtonInteraction): Promise<void> {
+  await interaction.deferUpdate();
+
+  const claimId = interaction.customId.slice("shop:claim:".length);
+  const claim = pendingDeliveries.get(claimId);
+
+  if (!claim) {
+    await interaction.editReply({
+      content: "These items have already been delivered or the button has expired.",
+      embeds: [],
+      components: [],
+    });
+    return;
+  }
+
+  // Delete immediately before any async work — prevents any double-claim race
+  pendingDeliveries.delete(claimId);
+
+  const { server, ingameName, items, currency } = claim;
+
+  if (!server.rcon_host) {
+    await interaction.editReply({
+      content: "RCON is not configured on this server. Ask an admin to deliver your items manually.",
+      embeds: [],
+      components: [],
+    });
+    return;
+  }
 
   const delivered: string[] = [];
   const failed: string[] = [];
@@ -490,44 +593,30 @@ async function completePurchase(interaction: ButtonInteraction, guildId: string)
           );
         }
       }
-      delivered.push(`[${qty}x] ${product.name}`);
-      if (product.stock !== -1) await db.decrementShopStock(product.id, qty);
-      await db.recordShopPurchase(server.id, ingameName, product.id);
+      delivered.push(`${qty}x ${product.name}`);
     } catch {
       failed.push(product.name);
-      await db.updateBalance(server.id, ingameName, product.price * qty);
+      // Refund items that failed to deliver
+      await db.updateBalance(server.id, ingameName, product.price * qty).catch(() => null);
     }
   }
 
-  clearBasket(interaction.user.id, guildId);
-  const newBalance = await db.getBalance(server.id, ingameName);
+  const failLines = failed.length > 0
+    ? `\n\n**Failed to deliver (refunded):** ${failed.join(", ")}`
+    : "";
 
-  if (interaction.guild) {
-    const logsChannelId = await db.getChannel(server.id, "cmd-logs");
-    if (logsChannelId) {
-      const ch = interaction.guild.channels.cache.get(logsChannelId);
-      if (ch && ch.isTextBased()) {
-        const summary = items.map(i => `${i.qty}x ${i.product.name}`).join(", ");
-        await ch.send(
-          `[SHOP] ${interaction.user.tag} purchased ${summary} for ${totalCost} ${currency} | In-game: ${ingameName} | Server ${server.server_number}`
-        ).catch(() => null);
-      }
-    }
-  }
-
-  const failLines = failed.length > 0 ? `\n\n**Failed to deliver:** ${failed.join(", ")} (refunded)` : "";
+  const newBalance = await db.getBalance(server.id, ingameName).catch(() => 0);
 
   const embed = new EmbedBuilder()
-    .setTitle("Purchase Summary")
-    .setColor(0x3dba8c)
+    .setTitle("\u2705 Items Delivered!")
+    .setColor(0x2ecc71)
     .setDescription(
-      `**Successful (Items Sent)**\n${delivered.map(d => `• ${d}`).join("\n")}${failLines}\n\n` +
-      `Old Balance: ${balance}\nNew Balance: ${newBalance}\n` +
-      `Use \`here, take this\` in-game to claim your purchases!`
+      `**Delivered to ${ingameName}:**\n${delivered.map(d => `\u2022 ${d}`).join("\n")}${failLines}\n\n` +
+      `**Balance:** ${newBalance} ${currency}`
     )
     .setFooter({ text: `Server ${server.server_number}: ${server.server_label}` });
 
-  await interaction.update({ embeds: [embed], components: [] });
+  await interaction.editReply({ embeds: [embed], components: [] });
 }
 
 // ---- Admin autocomplete helpers ----
