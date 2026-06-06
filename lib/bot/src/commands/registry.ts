@@ -31,8 +31,12 @@ export const ALL_CONFIG_KEYS = [
   "BountySystem","BountyReward","BountyScale","BountyDuration","BountyMaxTargets","BountyMinKills","BountyUnique",
   "combatlock_use","combatlock_time",
   "scheduler","scheduler-time",
-  "notemessaging",
+  "notemessaging","noteblocklist",
+  "prisonsystem",
   "prison-location",
+  "event1_use","event1_type","event1_interval","event1_msg1","event1_msg2","event1_msg3",
+  "event2_use","event2_type","event2_interval","event2_msg1","event2_msg2","event2_msg3",
+  "event3_use","event3_type","event3_interval","event3_msg1","event3_msg2","event3_msg3",
   "TPN_use","TPN_name","TPN_time","TPN_uselist","TPN_usedelay","TPN_delaytime","TPN_usekit","TPN_kitname","TPN_kill",
   "TPNE_use","TPNE_name","TPNE_time","TPNE_uselist","TPNE_usedelay","TPNE_delaytime","TPNE_usekit","TPNE_kitname","TPNE_kill",
   "TPE_use","TPE_name","TPE_time","TPE_uselist","TPE_usedelay","TPE_delaytime","TPE_usekit","TPE_kitname","TPE_kill",
@@ -51,11 +55,13 @@ import { handleGivekit, handleRefreshKits, autocompleteGivekit } from "./handler
 import { handleBalance, handleDaily, handleTransfer, handleSwap, handleLeaderboard, handleSetdailyscale, handleKillpoints, handleAddPointsPlayer, handleSubPointsPlayer, handleAddPointsServer, handleSubPointsServer, handleWipeEconomy } from "./handlers/economy.js";
 import { handleSpin, handleCoinflip, handleBlackjack, handleMaxbet } from "./handlers/gambling.js";
 import { handleShop, handleAdminShopCreateShop, handleAdminShopDeleteShop, handleAdminShopAddCategory, handleAdminShopAddSubcategory, handleAdminShopAddItem, handleAdminShopAddKit, handleAdminShopEditProduct, handleAdminShopRemoveProduct, handleDelayshop, handleOpenshop, autocompleteShopAdmin } from "./handlers/shop.js";
-import { handleKick, handleBan, handleUnban, handleMute, handleUnmute, handleWarn, handleWarnings, handleClearwarnings } from "./handlers/moderation.js";
+import { handleKick, handleBan, handleUnban, handleMute, handleUnmute, handleWarn, handleWarnings, handleClearwarnings, handleTempBan, handleGive, handlePlaying } from "./handlers/moderation.js";
 import { handlePrison, handleUnprison, handlePrisonList } from "./handlers/prison.js";
 import { handleWipeZorp, handleDelZorp } from "./handlers/zorp.js";
 import { handleRaidlink, handleListRaidlink, handleListRaidalert, handleWipeRaidlink, handleDelRaidlink } from "./handlers/raidalerts.js";
 import { handleAdminChannels, handleAdminPositions, handleAdminScheduler } from "./handlers/channels.js";
+import { handleWipeClaims, handleWipeKills, handleWipeTpHome, handleWipeShopTimers, handleWipePositions, handleClearList, handleBanboom, handleUnbanboom, handleTimedrestart, handleDelayClaims, handleTriggerEvent, handleClearAnEvent, handleSetLeaderboard } from "./handlers/admin-wipe.js";
+import { handleStats, handleProfile, handleTopkillers, handleScratch } from "./handlers/player.js";
 import { handleSet, autocompleteSet, handleConfigs } from "./handlers/configs.js";
 
 function serverOption(cmd: SlashCommandBuilder) {
@@ -115,6 +121,9 @@ export const commands: Command[] = [
           { name: "Announcements", value: "announcements" },
           { name: "Cmd Logs", value: "cmd-logs" },
           { name: "Player Count (voice)", value: "player-count" },
+          { name: "Note Feed (in-game notes)", value: "note-feed" },
+          { name: "Transactions (Tip4Serv)", value: "transactions" },
+          { name: "Chat Bridge (relay)", value: "chatbridge" },
         ))
       .addChannelOption(o => o.setName("channel").setDescription("Channel to assign").setRequired(true)),
     execute: handleAdminChannels,
@@ -460,5 +469,117 @@ export const commands: Command[] = [
     data: serverOption(new SlashCommandBuilder().setName("del-raidlink").setDescription("Remove one frequency registration (admin)")
       .addStringOption(o => o.setName("ingame_name").setDescription("In-game name").setRequired(true)) as SlashCommandBuilder),
     execute: handleDelRaidlink,
+  },
+  // Additional moderation
+  {
+    data: serverOption(new SlashCommandBuilder().setName("temp-ban").setDescription("Temporarily ban a player")
+      .addStringOption(o => o.setName("ingame_name").setDescription("In-game name").setRequired(true))
+      .addIntegerOption(o => o.setName("hours").setDescription("Duration in hours").setRequired(true).setMinValue(1))
+      .addStringOption(o => o.setName("reason").setDescription("Reason").setRequired(false)) as SlashCommandBuilder),
+    execute: handleTempBan,
+  },
+  {
+    data: serverOption(new SlashCommandBuilder().setName("give").setDescription("Give items to a player (mod)")
+      .addStringOption(o => o.setName("ingame_name").setDescription("In-game name").setRequired(true))
+      .addStringOption(o => o.setName("item").setDescription("Item shortname (e.g. wood, stones, metal.fragments)").setRequired(true))
+      .addIntegerOption(o => o.setName("amount").setDescription("Amount (default 1)").setRequired(false).setMinValue(1)) as SlashCommandBuilder),
+    execute: handleGive,
+  },
+  {
+    data: serverOption(new SlashCommandBuilder().setName("playing").setDescription("Check if a player is currently online")
+      .addStringOption(o => o.setName("ingame_name").setDescription("In-game name").setRequired(true)) as SlashCommandBuilder),
+    execute: handlePlaying,
+  },
+  // Wipe commands
+  {
+    data: serverOption(new SlashCommandBuilder().setName("wipe-claims").setDescription("Clear all kit claim records — players can claim again immediately (admin)") as SlashCommandBuilder),
+    execute: handleWipeClaims,
+  },
+  {
+    data: serverOption(new SlashCommandBuilder().setName("wipe-kills").setDescription("Reset all player kill counts to 0 (admin)") as SlashCommandBuilder),
+    execute: handleWipeKills,
+  },
+  {
+    data: serverOption(new SlashCommandBuilder().setName("wipe-tphome").setDescription("Clear all TP home records (admin)") as SlashCommandBuilder),
+    execute: handleWipeTpHome,
+  },
+  {
+    data: serverOption(new SlashCommandBuilder().setName("wipe-shoptimers").setDescription("Clear all shop purchase cooldowns (admin)") as SlashCommandBuilder),
+    execute: handleWipeShopTimers,
+  },
+  {
+    data: serverOption(new SlashCommandBuilder().setName("wipe-positions").setDescription("Clear all positions for a given type (admin)")
+      .addStringOption(o => o.setName("type").setDescription("Position type (TPN, crate1, airdrop1, prison, etc.)").setRequired(true)) as SlashCommandBuilder),
+    execute: handleWipePositions,
+  },
+  {
+    data: serverOption(new SlashCommandBuilder().setName("clear-list").setDescription("Remove all entries from a list (admin)")
+      .addStringOption(o => o.setName("list").setDescription("List name (e.g. viplist, elitelist1, recyclerlist)").setRequired(true)) as SlashCommandBuilder),
+    execute: handleClearList,
+  },
+  {
+    data: serverOption(new SlashCommandBuilder().setName("banboom").setDescription("Ban all currently online players (admin)")
+      .addStringOption(o => o.setName("reason").setDescription("Reason for ban").setRequired(false)) as SlashCommandBuilder),
+    execute: handleBanboom,
+  },
+  {
+    data: serverOption(new SlashCommandBuilder().setName("unbanboom").setDescription("Unban all players on this server (admin)") as SlashCommandBuilder),
+    execute: handleUnbanboom,
+  },
+  {
+    data: serverOption(new SlashCommandBuilder().setName("timedrestart").setDescription("Schedule a server restart with player warning (admin)")
+      .addIntegerOption(o => o.setName("minutes").setDescription("Minutes until restart").setRequired(true).setMinValue(1)) as SlashCommandBuilder),
+    execute: handleTimedrestart,
+  },
+  {
+    data: serverOption(new SlashCommandBuilder().setName("delay-claims").setDescription("Temporarily block kit claims (admin)")
+      .addIntegerOption(o => o.setName("hours").setDescription("Hours to delay").setRequired(true).setMinValue(1)) as SlashCommandBuilder),
+    execute: handleDelayClaims,
+  },
+  // Auto Events
+  {
+    data: serverOption(new SlashCommandBuilder().setName("trigger-event").setDescription("Manually trigger an auto event (mod)")
+      .addIntegerOption(o => o.setName("event").setDescription("Event number (1, 2, or 3)").setRequired(true).addChoices(
+        { name: "Event 1", value: 1 }, { name: "Event 2", value: 2 }, { name: "Event 3", value: 3 }
+      )) as SlashCommandBuilder),
+    execute: handleTriggerEvent,
+  },
+  {
+    data: serverOption(new SlashCommandBuilder().setName("clear-an-event").setDescription("Clear all positions for an event (admin)")
+      .addIntegerOption(o => o.setName("event").setDescription("Event number (1, 2, or 3)").setRequired(true).addChoices(
+        { name: "Event 1", value: 1 }, { name: "Event 2", value: 2 }, { name: "Event 3", value: 3 }
+      ))
+      .addStringOption(o => o.setName("type").setDescription("Override type: airdrop or crate").setRequired(false).addChoices(
+        { name: "airdrop", value: "airdrop" }, { name: "crate", value: "crate" }
+      )) as SlashCommandBuilder),
+    execute: handleClearAnEvent,
+  },
+  {
+    data: serverOption(new SlashCommandBuilder().setName("setleaderboard").setDescription("Set a channel for automatic leaderboard posts (admin)")
+      .addStringOption(o => o.setName("type").setDescription("Leaderboard type").setRequired(true).addChoices(
+        { name: "Economy (balances)", value: "economy" }, { name: "Kills", value: "kills" }
+      ))
+      .addChannelOption(o => o.setName("channel").setDescription("Channel to post leaderboard in").setRequired(true)) as SlashCommandBuilder),
+    execute: handleSetLeaderboard,
+  },
+  // Player / user commands
+  {
+    data: serverOption(new SlashCommandBuilder().setName("stats").setDescription("View your (or another player's) stats")
+      .addUserOption(o => o.setName("player").setDescription("Discord user to check (optional)").setRequired(false)) as SlashCommandBuilder),
+    execute: handleStats,
+  },
+  {
+    data: serverOption(new SlashCommandBuilder().setName("profile").setDescription("View a player's profile")
+      .addStringOption(o => o.setName("ingame_name").setDescription("In-game name (leave blank for your own)").setRequired(false)) as SlashCommandBuilder),
+    execute: handleProfile,
+  },
+  {
+    data: serverOption(new SlashCommandBuilder().setName("topkillers").setDescription("View the top 10 players by kills") as SlashCommandBuilder),
+    execute: handleTopkillers,
+  },
+  {
+    data: serverOption(new SlashCommandBuilder().setName("scratch").setDescription("Play a Rust scratch card for a chance to win coins")
+      .addIntegerOption(o => o.setName("bet").setDescription("Amount to bet").setRequired(true).setMinValue(1)) as SlashCommandBuilder),
+    execute: handleScratch,
   },
 ];

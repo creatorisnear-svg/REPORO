@@ -1033,3 +1033,64 @@ export async function getBountyWithPlacer(serverId: number): Promise<Array<Bount
   }));
   return result;
 }
+
+export async function wipeKitClaims(serverId: number): Promise<void> {
+  await db.execute({
+    sql: "DELETE FROM kit_claims WHERE server_id = ?",
+    args: [serverId]
+  });
+}
+
+export async function wipeKills(serverId: number): Promise<void> {
+  await db.execute({
+    sql: "UPDATE economy SET kill_count = 0 WHERE server_id = ?",
+    args: [serverId]
+  });
+}
+
+export async function wipeTpHomes(serverId: number): Promise<void> {
+  await db.execute({
+    sql: "DELETE FROM tp_homes WHERE server_id = ?",
+    args: [serverId]
+  });
+}
+
+export async function clearAllFromList(serverId: number, listName: string): Promise<void> {
+  await db.execute({
+    sql: "DELETE FROM lists WHERE server_id = ? AND list_name = ?",
+    args: [serverId, listName]
+  });
+}
+
+export async function getTopKillers(serverId: number, limit = 10): Promise<Array<{ ingame_name: string; kill_count: number }>> {
+  const result = await db.execute({
+    sql: "SELECT ingame_name, kill_count FROM economy WHERE server_id = ? AND kill_count > 0 ORDER BY kill_count DESC LIMIT ?",
+    args: [serverId, limit]
+  });
+  return result.rows as unknown as Array<{ ingame_name: string; kill_count: number }>;
+}
+
+export async function getPlayerStats(serverId: number, ingameName: string): Promise<{ balance: number; kill_count: number } | null> {
+  const result = await db.execute({
+    sql: "SELECT balance, kill_count FROM economy WHERE server_id = ? AND ingame_name = ?",
+    args: [serverId, ingameName]
+  });
+  const row = result.rows[0] as unknown as { balance: number; kill_count: number } | undefined;
+  return row ?? null;
+}
+
+export async function wipeShopTimers(serverId: number): Promise<void> {
+  await db.execute({
+    sql: "DELETE FROM shop_purchases WHERE server_id = ?",
+    args: [serverId]
+  });
+}
+
+export async function getShopPurchasesCount(serverId: number): Promise<number> {
+  const result = await db.execute({
+    sql: "SELECT COUNT(*) as cnt FROM shop_purchases WHERE server_id = ?",
+    args: [serverId]
+  });
+  const row = result.rows[0] as unknown as { cnt: number } | undefined;
+  return row?.cnt ?? 0;
+}

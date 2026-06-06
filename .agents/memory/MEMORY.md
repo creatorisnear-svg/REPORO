@@ -3,3 +3,4 @@
 - [discord.js SlashCommandOptionsOnlyBuilder](discordjs-command-type.md) — adding options to SlashCommandBuilder returns SlashCommandOptionsOnlyBuilder; Command.data union must include it
 - [Static files build copy](static-files-build.md) — esbuild bundles to dist/ but static HTML lives in src/public/; must cp src/public to dist/public in build.mjs
 - [Aviv Bot architecture](aviv-bot-arch.md) — bot runs inside api-server process; parser exports initParser (not handleRconLog); rconManager re-exported from @workspace/bot
+- [RCE RCON command format](rce-rcon-commands.md) — RCE-specific RCON syntax; ban uses 0 for permanent, kit.give not giveto, event commands callairlift/spawnlootcrate

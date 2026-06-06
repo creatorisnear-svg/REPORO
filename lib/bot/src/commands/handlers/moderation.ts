@@ -58,7 +58,7 @@ export async function handleBan(interaction: ChatInputCommandInteraction): Promi
   const ingameName = interaction.options.getString("ingame_name", true);
   const reason = interaction.options.getString("reason") ?? "No reason given";
 
-  const result = await sendRcon(server, `ban "${ingameName}" "${reason}"`);
+  const result = await sendRcon(server, `ban "${ingameName}" 0 "${reason}"`);
   await logCmd(interaction, server, `banned **${ingameName}** — ${reason}`);
   await interaction.editReply({
     content: `Banned **${ingameName}** (${reason}).${rconNote(result)}`,
@@ -162,4 +162,69 @@ export async function handleClearwarnings(interaction: ChatInputCommandInteracti
   await db.clearWarnings(server.id, ingameName);
   await logCmd(interaction, server, `cleared warnings for **${ingameName}**`);
   await interaction.editReply({ content: `Cleared all warnings for **${ingameName}**.` });
+}
+
+export async function handleTempBan(interaction: ChatInputCommandInteraction): Promise<void> {
+  if (!await requireRole(interaction, "avivmod")) return;
+  const server = await getServerForInteraction(interaction);
+  if (!server) return;
+
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  const ingameName = interaction.options.getString("ingame_name", true);
+  const hours = interaction.options.getInteger("hours", true);
+  const reason = interaction.options.getString("reason") ?? "Temporary ban";
+
+  const result = await sendRcon(server, `ban "${ingameName}" ${hours} "${reason}"`);
+  await logCmd(interaction, server, `temp-banned **${ingameName}** for ${hours}h — ${reason}`);
+  await interaction.editReply({
+    content: `Temp-banned **${ingameName}** for **${hours} hour(s)**. Reason: ${reason}${rconNote(result)}`,
+  });
+}
+
+export async function handleGive(interaction: ChatInputCommandInteraction): Promise<void> {
+  if (!await requireRole(interaction, "avivmod")) return;
+  const server = await getServerForInteraction(interaction);
+  if (!server) return;
+
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  const ingameName = interaction.options.getString("ingame_name", true);
+  const item = interaction.options.getString("item", true);
+  const amount = interaction.options.getInteger("amount") ?? 1;
+
+  const result = await sendRcon(server, `inventory.give "${ingameName}" "${item}" ${amount}`);
+  await logCmd(interaction, server, `gave **${ingameName}** ${amount}x ${item}`);
+  await interaction.editReply({
+    content: `Gave **${ingameName}** ${amount}x \`${item}\`.${rconNote(result)}`,
+  });
+}
+
+export async function handlePlaying(interaction: ChatInputCommandInteraction): Promise<void> {
+  if (!await requireRole(interaction, "avivmod")) return;
+  const server = await getServerForInteraction(interaction);
+  if (!server) return;
+
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  const ingameName = interaction.options.getString("ingame_name", true);
+
+  if (!server.rcon_host) {
+    await interaction.editReply({ content: "RCON not configured for this server." });
+    return;
+  }
+
+  try {
+    const response = await rconManager.sendCommand(
+      server.id, server.rcon_host, server.rcon_port!, server.rcon_password!, "playerlist"
+    );
+    const online = response.toLowerCase().includes(ingameName.toLowerCase());
+    await interaction.editReply({
+      content: online
+        ? `\u{1F7E2} **${ingameName}** is currently **online** on Server ${server.server_number}.`
+        : `\u{1F534} **${ingameName}** is currently **offline** on Server ${server.server_number}.`,
+    });
+  } catch {
+    await interaction.editReply({ content: "Could not reach RCON to check player status." });
+  }
 }

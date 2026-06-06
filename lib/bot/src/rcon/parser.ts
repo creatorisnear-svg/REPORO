@@ -130,6 +130,26 @@ async function handleLog(raw: string, serverId: number): Promise<void> {
       await handleRaidAlert(serverId, freqMatch[1]);
     }
   }
+
+  const noteMatch = raw.match(/^\[NOTE\]\s+(.+?)\s*:\s*(.+)$/);
+  if (noteMatch) {
+    const [, playerName, noteText] = noteMatch;
+    await handleNoteLog(serverId, playerName.trim(), noteText.trim());
+    return;
+  }
+}
+
+async function handleNoteLog(serverId: number, playerName: string, noteText: string): Promise<void> {
+  const noteEnabled = await getConfig(serverId, "notemessaging") ?? "off";
+  if (noteEnabled !== "on") return;
+
+  const blockList = await getConfig(serverId, "noteblocklist") ?? "";
+  if (blockList) {
+    const blocked = blockList.split(",").map(s => s.trim().toLowerCase());
+    if (blocked.some(b => noteText.toLowerCase().includes(b))) return;
+  }
+
+  await postToChannel(serverId, "note-feed", `\u{1F4DD} **${playerName}** wrote a note: *${noteText}*`);
 }
 
 const playerKillStreaks = new Map<string, { count: number; lastReset: number }>();
@@ -470,7 +490,7 @@ async function handleKit(serverId: number, playerName: string, kitType: string):
 
   try {
     await rconManager.sendFireAndForget(serverId, server.rcon_host, server.rcon_port!, server.rcon_password!,
-      `giveto ${playerName} ${kitName}`);
+      `kit.give "${playerName}" "${kitName}"`);
     await db.recordKitClaim(serverId, playerName, kitType);
   } catch (err) {
     await postToChannel(serverId, "errors", `Kit error for **${playerName}** (${kitType}): ${String(err)}`);
@@ -542,7 +562,7 @@ async function handleDirectionalTp(serverId: number, playerName: string, tpConfi
     if (giveKit === "on") {
       const kitName = await getConfig(serverId, `${tpConfig}_kitname`) ?? "";
       if (kitName) {
-        await rconManager.sendFireAndForget(serverId, server.rcon_host, server.rcon_port!, server.rcon_password!, `giveto ${playerName} ${kitName}`);
+        await rconManager.sendFireAndForget(serverId, server.rcon_host, server.rcon_port!, server.rcon_password!, `kit.give "${playerName}" "${kitName}"`);
       }
     }
   } catch { /* ignore */ }

@@ -5,6 +5,7 @@ import { startScheduler } from "../features/scheduler.js";
 import { updatePlayerCountChannels } from "../features/playercount.js";
 import { runZorpExpiryCheck } from "../features/zorp.js";
 import { runPrisonReleaseCheck, runPrisonKeepCheck } from "../features/prison.js";
+import { runAutoEvents } from "../features/events.js";
 import { getAllServers } from "@workspace/db";
 import { rconManager } from "../rcon/manager.js";
 
@@ -65,6 +66,11 @@ export async function handleReady(client: Client<true>): Promise<void> {
   setInterval(() => {
     runPrisonKeepCheck(client).catch(e => console.error("[PrisonKeep]", e));
   }, 30_000);
+
+  // Auto events check - every 1 minute
+  setInterval(() => {
+    runAutoEvents(client).catch(e => console.error("[Events]", e));
+  }, 60_000);
 
   // Run initial checks
   runZorpExpiryCheck(client).catch(() => null);

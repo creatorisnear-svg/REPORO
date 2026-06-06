@@ -24,7 +24,7 @@ export async function handleAdminPositions(interaction: ChatInputCommandInteract
   const action = interaction.options.getString("action", true);
 
   if (action === "list") {
-    const allTypes = ["TPN", "TPNE", "TPE", "TPSE", "TPS", "TPSW", "TPW", "TPNW", "prison", "prison_release"];
+    const allTypes = ["TPN", "TPNE", "TPE", "TPSE", "TPS", "TPSW", "TPW", "TPNW", "prison", "prison_release", "airdrop1", "airdrop2", "airdrop3", "crate1", "crate2", "crate3"];
     const lines: string[] = [];
     for (const type of allTypes) {
       const positions = await db.getTpPositions(server.id, type);
