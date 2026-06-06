@@ -627,6 +627,17 @@ export async function getShopCategories(serverId: number): Promise<ShopCategoryR
   return r.rows as unknown as ShopCategoryRow[];
 }
 
+// Returns all shop categories across every server in the guild (global shop view).
+export async function getShopCategoriesByGuild(guildId: string): Promise<ShopCategoryRow[]> {
+  const r = await db.execute({
+    sql: `SELECT sc.* FROM shop_categories sc
+          JOIN servers s ON sc.server_id = s.id
+          WHERE s.discord_guild_id = ?`,
+    args: [guildId]
+  });
+  return r.rows as unknown as ShopCategoryRow[];
+}
+
 export async function getShopProducts(categoryId: number): Promise<ShopProductRow[]> {
   const r = await db.execute({
     sql: "SELECT * FROM shop_products WHERE category_id = ?",

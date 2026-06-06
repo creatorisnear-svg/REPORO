@@ -50,7 +50,7 @@ import { handleAddToList, handleRemoveFromList, handleGetList } from "./handlers
 import { handleGivekit } from "./handlers/kits.js";
 import { handleBalance, handleDaily, handleTransfer, handleSwap, handleLeaderboard, handleSetdailyscale, handleKillpoints, handleAddPointsPlayer, handleSubPointsPlayer, handleAddPointsServer, handleSubPointsServer, handleWipeEconomy } from "./handlers/economy.js";
 import { handleSpin, handleCoinflip, handleBlackjack, handleMaxbet } from "./handlers/gambling.js";
-import { handleShop, handleAdminShopCreateShop, handleAdminShopDeleteShop, handleAdminShopAddCategory, handleAdminShopAddSubcategory, handleAdminShopAddItem, handleAdminShopAddKit, handleAdminShopEditProduct, handleAdminShopRemoveProduct, handleDelayshop, handleOpenshop } from "./handlers/shop.js";
+import { handleShop, handleAdminShopCreateShop, handleAdminShopDeleteShop, handleAdminShopAddCategory, handleAdminShopAddSubcategory, handleAdminShopAddItem, handleAdminShopAddKit, handleAdminShopEditProduct, handleAdminShopRemoveProduct, handleDelayshop, handleOpenshop, autocompleteShopAdmin } from "./handlers/shop.js";
 import { handleKick, handleBan, handleUnban, handleMute, handleUnmute, handleWarn, handleWarnings, handleClearwarnings } from "./handlers/moderation.js";
 import { handlePrison, handleUnprison, handlePrisonList } from "./handlers/prison.js";
 import { handleWipeZorp, handleDelZorp } from "./handlers/zorp.js";
@@ -291,65 +291,69 @@ export const commands: Command[] = [
   },
   // Shop
   {
-    data: serverOption(new SlashCommandBuilder().setName("shop").setDescription("Browse the server shop") as SlashCommandBuilder),
+    data: new SlashCommandBuilder().setName("shop").setDescription("Browse and buy from the guild shop"),
     execute: handleShop,
   },
   {
-    data: serverOption(new SlashCommandBuilder().setName("admin-shop-create-shop").setDescription("Create the shop for this server") as SlashCommandBuilder),
+    data: new SlashCommandBuilder().setName("admin-shop-create-shop").setDescription("Initialize the shop for this guild"),
     execute: handleAdminShopCreateShop,
   },
   {
-    data: serverOption(new SlashCommandBuilder().setName("admin-shop-delete-shop").setDescription("Delete the entire shop") as SlashCommandBuilder),
+    data: new SlashCommandBuilder().setName("admin-shop-delete-shop").setDescription("Delete the entire guild shop"),
     execute: handleAdminShopDeleteShop,
   },
   {
-    data: serverOption(new SlashCommandBuilder().setName("admin-shop-add-category").setDescription("Add a shop category")
+    data: new SlashCommandBuilder().setName("admin-shop-add-category").setDescription("Add a shop category")
       .addStringOption(o => o.setName("name").setDescription("Category name").setRequired(true))
-      .addStringOption(o => o.setName("type").setDescription("Category type").setRequired(false).addChoices({ name: "item", value: "item" }, { name: "kit", value: "kit" })) as SlashCommandBuilder),
+      .addStringOption(o => o.setName("type").setDescription("Category type").setRequired(false).addChoices({ name: "item", value: "item" }, { name: "kit", value: "kit" })) as SlashCommandBuilder,
     execute: handleAdminShopAddCategory,
   },
   {
-    data: serverOption(new SlashCommandBuilder().setName("admin-shop-add-subcategory").setDescription("Add a subcategory")
+    data: new SlashCommandBuilder().setName("admin-shop-add-subcategory").setDescription("Add a subcategory under an existing category")
       .addStringOption(o => o.setName("name").setDescription("Subcategory name").setRequired(true))
-      .addStringOption(o => o.setName("parent").setDescription("Parent category name").setRequired(true)) as SlashCommandBuilder),
+      .addStringOption(o => o.setName("parent").setDescription("Parent category — search as you type").setRequired(true).setAutocomplete(true)) as SlashCommandBuilder,
     execute: handleAdminShopAddSubcategory,
+    autocomplete: autocompleteShopAdmin,
   },
   {
-    data: serverOption(new SlashCommandBuilder().setName("admin-shop-add-item").setDescription("Add an item to the shop")
+    data: new SlashCommandBuilder().setName("admin-shop-add-item").setDescription("Add an item to the shop")
       .addStringOption(o => o.setName("name").setDescription("Item display name").setRequired(true))
-      .addStringOption(o => o.setName("shortname").setDescription("Rust item shortname").setRequired(true))
+      .addStringOption(o => o.setName("shortname").setDescription("Rust item shortname — search as you type").setRequired(true).setAutocomplete(true))
       .addIntegerOption(o => o.setName("price").setDescription("Price in coins").setRequired(true))
-      .addStringOption(o => o.setName("category").setDescription("Category name").setRequired(true))
-      .addIntegerOption(o => o.setName("timer_hours").setDescription("Purchase timer in hours (0 = unlimited)").setRequired(false)) as SlashCommandBuilder),
+      .addStringOption(o => o.setName("category").setDescription("Category — search as you type").setRequired(true).setAutocomplete(true))
+      .addIntegerOption(o => o.setName("timer_hours").setDescription("Cooldown in hours (0 = none)").setRequired(false))
+      .addIntegerOption(o => o.setName("stock").setDescription("Stock amount (-1 = unlimited)").setRequired(false)) as SlashCommandBuilder,
     execute: handleAdminShopAddItem,
+    autocomplete: autocompleteShopAdmin,
   },
   {
-    data: serverOption(new SlashCommandBuilder().setName("admin-shop-add-kit").setDescription("Add a kit to the shop")
+    data: new SlashCommandBuilder().setName("admin-shop-add-kit").setDescription("Add a kit to the shop")
       .addStringOption(o => o.setName("kit_name").setDescription("Kit name").setRequired(true))
       .addIntegerOption(o => o.setName("price").setDescription("Price in coins").setRequired(true))
-      .addStringOption(o => o.setName("category").setDescription("Category name").setRequired(true))
-      .addIntegerOption(o => o.setName("timer_hours").setDescription("Purchase timer in hours").setRequired(false)) as SlashCommandBuilder),
+      .addStringOption(o => o.setName("category").setDescription("Category — search as you type").setRequired(true).setAutocomplete(true))
+      .addIntegerOption(o => o.setName("timer_hours").setDescription("Cooldown in hours").setRequired(false)) as SlashCommandBuilder,
     execute: handleAdminShopAddKit,
+    autocomplete: autocompleteShopAdmin,
   },
   {
-    data: serverOption(new SlashCommandBuilder().setName("admin-shop-edit-product").setDescription("Edit a shop product")
+    data: new SlashCommandBuilder().setName("admin-shop-edit-product").setDescription("Edit a shop product's price or stock")
       .addIntegerOption(o => o.setName("product_id").setDescription("Product ID").setRequired(true))
       .addIntegerOption(o => o.setName("price").setDescription("New price").setRequired(false))
-      .addIntegerOption(o => o.setName("stock").setDescription("New stock (-1 = unlimited)").setRequired(false)) as SlashCommandBuilder),
+      .addIntegerOption(o => o.setName("stock").setDescription("New stock (-1 = unlimited)").setRequired(false)) as SlashCommandBuilder,
     execute: handleAdminShopEditProduct,
   },
   {
-    data: serverOption(new SlashCommandBuilder().setName("admin-shop-remove-product").setDescription("Remove a product from the shop")
-      .addIntegerOption(o => o.setName("product_id").setDescription("Product ID").setRequired(true)) as SlashCommandBuilder),
+    data: new SlashCommandBuilder().setName("admin-shop-remove-product").setDescription("Remove a product from the shop")
+      .addIntegerOption(o => o.setName("product_id").setDescription("Product ID").setRequired(true)) as SlashCommandBuilder,
     execute: handleAdminShopRemoveProduct,
   },
   {
-    data: serverOption(new SlashCommandBuilder().setName("delayshop").setDescription("Temporarily close the shop")
-      .addIntegerOption(o => o.setName("minutes").setDescription("Duration in minutes").setRequired(true)) as SlashCommandBuilder),
+    data: new SlashCommandBuilder().setName("delayshop").setDescription("Temporarily close the shop for the whole guild")
+      .addIntegerOption(o => o.setName("minutes").setDescription("Duration in minutes").setRequired(true)) as SlashCommandBuilder,
     execute: handleDelayshop,
   },
   {
-    data: serverOption(new SlashCommandBuilder().setName("openshop").setDescription("Reopen the shop early") as SlashCommandBuilder),
+    data: new SlashCommandBuilder().setName("openshop").setDescription("Reopen the shop early"),
     execute: handleOpenshop,
   },
   // Moderation

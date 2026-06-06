@@ -2,7 +2,8 @@ import type {
   ChatInputCommandInteraction,
   StringSelectMenuInteraction,
   ButtonInteraction,
-  Guild,
+  ModalSubmitInteraction,
+  AutocompleteInteraction,
 } from "discord.js";
 import {
   EmbedBuilder,
@@ -12,58 +13,66 @@ import {
   ButtonBuilder,
   ButtonStyle,
   MessageFlags,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
 } from "discord.js";
 import * as db from "@workspace/db";
-import { getServerForInteraction, requireRole } from "./utils.js";
+import { requireRole } from "./utils.js";
 import { rconManager } from "../../rcon/manager.js";
 
-// ---- In-memory baskets: key = `${userId}:${serverId}` ----
-interface BasketItem { productId: number; qty: number; }
+// ---- Basket: keyed by userId:guildId (shop is global per guild) ----
 const baskets = new Map<string, Map<number, number>>();
-
-function basketKey(userId: string, serverId: number) { return `${userId}:${serverId}`; }
-function getBasket(userId: string, serverId: number): Map<number, number> {
-  const key = basketKey(userId, serverId);
+function basketKey(userId: string, guildId: string) { return `${userId}:${guildId}`; }
+function getBasket(userId: string, guildId: string): Map<number, number> {
+  const key = basketKey(userId, guildId);
   if (!baskets.has(key)) baskets.set(key, new Map());
   return baskets.get(key)!;
 }
-function clearBasket(userId: string, serverId: number) { baskets.delete(basketKey(userId, serverId)); }
+function clearBasket(userId: string, guildId: string) { baskets.delete(basketKey(userId, guildId)); }
 
-// ---- Shop closed map ----
-const shopClosed = new Map<number, number>();
+// ---- Shop closed: keyed by guildId ----
+const shopClosed = new Map<string, number>();
 
 // ---- Helpers ----
 function isKit(shortname: string) { return shortname.startsWith("kit:"); }
 function kitName(shortname: string) { return shortname.slice(4); }
 
-async function getCurrency(serverId: number) {
-  return (await db.getConfig(serverId, "currency_name")) ?? "coins";
+async function getGuildCurrency(guildId: string): Promise<string> {
+  const servers = await db.getServersByGuild(guildId);
+  if (!servers.length) return "coins";
+  return (await db.getConfig(servers[0]!.id, "currency_name")) ?? "coins";
 }
 
-async function getIngameName(serverId: number, userId: string): Promise<string | null> {
-  const p = await db.getPlayerByDiscord(serverId, userId);
-  return p?.ingame_name ?? null;
+async function getPlayerForShop(
+  guildId: string,
+  userId: string
+): Promise<{ server: db.ServerRow; ingameName: string } | null> {
+  const servers = await db.getServersByGuild(guildId);
+  for (const server of servers) {
+    const p = await db.getPlayerByDiscord(server.id, userId);
+    if (p) return { server, ingameName: p.ingame_name };
+  }
+  return null;
 }
 
-// ---- Build the shop UI (category select + optional basket rows) ----
+// ---- Build the shop UI ----
 
 async function buildShopMessage(
   userId: string,
-  serverId: number,
-  server: db.ServerRow,
+  guildId: string,
   selectedCatId?: number
 ) {
-  const currency = await getCurrency(serverId);
-  const ingameName = await getIngameName(serverId, userId);
-  const balance = ingameName ? await db.getBalance(serverId, ingameName) : 0;
+  const currency = await getGuildCurrency(guildId);
+  const playerInfo = await getPlayerForShop(guildId, userId);
+  const balance = playerInfo
+    ? await db.getBalance(playerInfo.server.id, playerInfo.ingameName)
+    : 0;
 
-  const basket = getBasket(userId, serverId);
-  const basketEntries = [...basket.entries()]; // [productId, qty]
-
-  // Resolve product names for basket display
+  const basket = getBasket(userId, guildId);
   const basketProducts: Array<{ product: db.ShopProductRow; qty: number }> = [];
   let basketCost = 0;
-  for (const [pid, qty] of basketEntries) {
+  for (const [pid, qty] of basket.entries()) {
     const product = await db.getShopProductById(pid);
     if (product) {
       basketProducts.push({ product, qty });
@@ -71,7 +80,6 @@ async function buildShopMessage(
     }
   }
 
-  // Build embed
   let embedDesc = `**Your balance:** ${balance} ${currency}\n\n`;
   if (basketProducts.length > 0) {
     const lines = basketProducts.map(b => `• ${b.qty}x ${b.product.name}`);
@@ -82,25 +90,24 @@ async function buildShopMessage(
   }
 
   const embed = new EmbedBuilder()
-    .setTitle(basketProducts.length > 0 ? `Your Basket` : `Shop — Server ${server.server_number}: ${server.server_label}`)
+    .setTitle(basketProducts.length > 0 ? "Your Basket" : "Shop")
     .setDescription(embedDesc)
-    .setColor(basketProducts.length > 0 ? 0xe07a32 : 0x2b2d31)
-    .setFooter({ text: `Server ${server.server_number}: ${server.server_label}` });
+    .setColor(basketProducts.length > 0 ? 0xe07a32 : 0x2b2d31);
 
   const rows: ActionRowBuilder<StringSelectMenuBuilder | ButtonBuilder>[] = [];
 
-  // Row 1: Category select
-  const categories = await db.getShopCategories(serverId);
+  // Row 1: Category select (all categories across the guild)
+  const categories = await db.getShopCategoriesByGuild(guildId);
   const topLevel = categories.filter(c => !c.parent_id).slice(0, 25);
   if (topLevel.length > 0) {
     const catSelect = new StringSelectMenuBuilder()
-      .setCustomId(`shop:s${serverId}:cats`)
+      .setCustomId(`shop:g${guildId}:cats`)
       .setPlaceholder(basketProducts.length > 0 ? "Add more items..." : "Select a category")
       .addOptions(
         topLevel.map(c =>
           new StringSelectMenuOptionBuilder()
             .setLabel(c.name)
-            .setValue(`${serverId}:${c.id}`)
+            .setValue(`${c.id}`)
             .setDescription(c.category_type === "kit" ? "Kits" : "Items")
             .setDefault(c.id === selectedCatId)
         )
@@ -108,46 +115,46 @@ async function buildShopMessage(
     rows.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(catSelect));
   }
 
-  // Rows 2-4: only when basket has items
   if (basketProducts.length > 0) {
-    // Row 2: Remove item select
+    // Remove item select
     const removeSelect = new StringSelectMenuBuilder()
-      .setCustomId(`shop:s${serverId}:rm`)
-      .setPlaceholder("Select an item to remove")
+      .setCustomId(`shop:g${guildId}:rm`)
+      .setPlaceholder("Remove an item from basket")
       .addOptions(
         basketProducts.map(b =>
           new StringSelectMenuOptionBuilder()
             .setLabel(`${b.product.name} (x${b.qty})`)
-            .setValue(`${serverId}:${b.product.id}`)
+            .setValue(`${b.product.id}`)
         )
       );
     rows.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(removeSelect));
 
-    // Row 3: Adjust qty select
+    // Adjust qty select (shows a modal on select)
     const adjSelect = new StringSelectMenuBuilder()
-      .setCustomId(`shop:s${serverId}:adj`)
-      .setPlaceholder("Select an item to adjust quantity")
+      .setCustomId(`shop:g${guildId}:adj`)
+      .setPlaceholder("Change quantity for an item")
       .addOptions(
         basketProducts.map(b =>
           new StringSelectMenuOptionBuilder()
-            .setLabel(`${b.product.name} (x${b.qty})`)
-            .setValue(`${serverId}:${b.product.id}`)
+            .setLabel(`${b.product.name} (currently x${b.qty})`)
+            .setValue(`${b.product.id}`)
         )
       );
     rows.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(adjSelect));
 
-    // Row 4: Cancel + Complete Purchase
-    const actionRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder()
-        .setCustomId(`shop:s${serverId}:cancel`)
-        .setLabel("Cancel Purchase")
-        .setStyle(ButtonStyle.Danger),
-      new ButtonBuilder()
-        .setCustomId(`shop:s${serverId}:buy`)
-        .setLabel(`Complete Purchase — ${basketCost} ${currency}`)
-        .setStyle(ButtonStyle.Success)
+    // Cancel + Complete
+    rows.push(
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`shop:g${guildId}:cancel`)
+          .setLabel("Cancel Purchase")
+          .setStyle(ButtonStyle.Danger),
+        new ButtonBuilder()
+          .setCustomId(`shop:g${guildId}:buy`)
+          .setLabel(`Complete Purchase — ${basketCost} ${currency}`)
+          .setStyle(ButtonStyle.Success)
+      )
     );
-    rows.push(actionRow);
   }
 
   return { embeds: [embed], components: rows };
@@ -155,11 +162,11 @@ async function buildShopMessage(
 
 // ---- Build item select for a category ----
 
-async function buildItemSelect(serverId: number, catId: number, currency: string) {
+async function buildItemSelect(guildId: string, catId: number, currency: string) {
   const products = await db.getShopProducts(catId);
   if (products.length === 0) return null;
   return new StringSelectMenuBuilder()
-    .setCustomId(`shop:s${serverId}:itms`)
+    .setCustomId(`shop:g${guildId}:itms`)
     .setPlaceholder("Select an item to add to basket")
     .addOptions(
       products.slice(0, 25).map(p => {
@@ -167,8 +174,10 @@ async function buildItemSelect(serverId: number, catId: number, currency: string
         const kitLabel = isKit(p.shortname) ? " [KIT]" : "";
         return new StringSelectMenuOptionBuilder()
           .setLabel(`${p.name}${kitLabel}`)
-          .setValue(`${serverId}:${p.id}`)
-          .setDescription(`${p.price} ${currency}  |  ${stock}${p.timer_hours > 0 ? `  |  ${p.timer_hours}h cooldown` : ""}`);
+          .setValue(`${p.id}`)
+          .setDescription(
+            `${p.price} ${currency}  |  ${stock}${p.timer_hours > 0 ? `  |  ${p.timer_hours}h cooldown` : ""}`
+          );
       })
     );
 }
@@ -176,52 +185,29 @@ async function buildItemSelect(serverId: number, catId: number, currency: string
 // ---- /shop entry point ----
 
 export async function handleShop(interaction: ChatInputCommandInteraction): Promise<void> {
-  if (!interaction.guild) { await interaction.reply({ content: "Must be used in a server.", flags: MessageFlags.Ephemeral }); return; }
+  if (!interaction.guild) {
+    await interaction.reply({ content: "Must be used in a server.", flags: MessageFlags.Ephemeral });
+    return;
+  }
 
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-  // Check if shop is closed
-  const serverNum = interaction.options.getInteger("server");
-  let server: db.ServerRow | null = null;
+  const guildId = interaction.guild.id;
 
-  if (!serverNum) {
-    const all = await db.getServersByGuild(interaction.guild.id);
-    if (all.length === 0) { await interaction.editReply({ content: "No servers configured. Use /add-server first." }); return; }
-    if (all.length > 1) {
-      // Show server picker
-      const select = new StringSelectMenuBuilder()
-        .setCustomId("shop:srv")
-        .setPlaceholder("Which server do you want to shop on?")
-        .addOptions(all.map(s =>
-          new StringSelectMenuOptionBuilder()
-            .setLabel(`${s.server_number} | ${s.server_label}`)
-            .setValue(String(s.id))
-        ));
-      await interaction.editReply({
-        embeds: [new EmbedBuilder().setTitle("Shop").setDescription("Select a server to shop on:").setColor(0x2b2d31)],
-        components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)],
-      });
-      return;
-    }
-    server = all[0]!;
-  } else {
-    server = await getServerForInteraction(interaction);
-    if (!server) return;
-  }
-
-  // Check shop closed
-  const closedUntil = shopClosed.get(server.id);
+  const closedUntil = shopClosed.get(guildId);
   if (closedUntil && Date.now() < closedUntil) {
     const mins = Math.ceil((closedUntil - Date.now()) / 60000);
     await interaction.editReply({ content: `The shop is closed for ~${mins} more minute(s).` });
     return;
   }
 
-  // Check linked
-  const ingameName = await getIngameName(server.id, interaction.user.id);
-  if (!ingameName) { await interaction.editReply({ content: "You must link your in-game name first. Use /link." }); return; }
+  const playerInfo = await getPlayerForShop(guildId, interaction.user.id);
+  if (!playerInfo) {
+    await interaction.editReply({ content: "You must link your in-game name first. Use /link." });
+    return;
+  }
 
-  const msg = await buildShopMessage(interaction.user.id, server.id, server);
+  const msg = await buildShopMessage(interaction.user.id, guildId);
   await interaction.editReply(msg as Parameters<typeof interaction.editReply>[0]);
 }
 
@@ -232,44 +218,35 @@ export async function handleShopInteraction(
 ): Promise<void> {
   const id = interaction.customId;
 
-  // Server picker
-  if (id === "shop:srv" && interaction.isStringSelectMenu()) {
-    const serverId = Number(interaction.values[0]);
-    const server = await db.getServerById(serverId);
-    if (!server) { await interaction.update({ content: "Server not found.", components: [], embeds: [] }); return; }
-    const ingameName = await getIngameName(server.id, interaction.user.id);
-    if (!ingameName) { await interaction.update({ content: "Link your account first with /link.", components: [], embeds: [] }); return; }
-    const msg = await buildShopMessage(interaction.user.id, server.id, server);
-    await interaction.update(msg as Parameters<typeof interaction.update>[0]);
-    return;
-  }
-
-  // Category select: shop:s<id>:cats — value = "<srvId>:<catId>"
-  const catsMatch = id.match(/^shop:s(\d+):cats$/);
+  // Category select: shop:g<guildId>:cats — value = "<catId>"
+  const catsMatch = id.match(/^shop:g(\d+):cats$/);
   if (catsMatch && interaction.isStringSelectMenu()) {
-    const [srvIdStr, catIdStr] = interaction.values[0]!.split(":");
-    const serverId = Number(srvIdStr);
-    const catId = Number(catIdStr);
-    const currency = await getCurrency(serverId);
-    const server = await db.getServerById(serverId);
-    if (!server) { await interaction.update({ content: "Server not found.", embeds: [], components: [] }); return; }
+    const guildId = catsMatch[1]!;
+    const catId = Number(interaction.values[0]);
+    const currency = await getGuildCurrency(guildId);
 
-    const categories = await db.getShopCategories(serverId);
+    const categories = await db.getShopCategoriesByGuild(guildId);
     const cat = categories.find(c => c.id === catId);
-    const itemSelect = await buildItemSelect(serverId, catId, currency);
+    const itemSelect = await buildItemSelect(guildId, catId, currency);
 
     if (!itemSelect) {
-      // Maybe subcategories
       const subs = categories.filter(c => c.parent_id === catId).slice(0, 25);
       if (subs.length > 0) {
         const subSelect = new StringSelectMenuBuilder()
-          .setCustomId(`shop:s${serverId}:cats`)
+          .setCustomId(`shop:g${guildId}:cats`)
           .setPlaceholder("Select a subcategory")
-          .addOptions(subs.map(c =>
-            new StringSelectMenuOptionBuilder().setLabel(c.name).setValue(`${serverId}:${c.id}`)
-          ));
+          .addOptions(
+            subs.map(c =>
+              new StringSelectMenuOptionBuilder().setLabel(c.name).setValue(`${c.id}`)
+            )
+          );
         await interaction.update({
-          embeds: [new EmbedBuilder().setTitle(cat?.name ?? "Category").setColor(0x2b2d31).setDescription("Choose a subcategory:")],
+          embeds: [
+            new EmbedBuilder()
+              .setTitle(cat?.name ?? "Category")
+              .setColor(0x2b2d31)
+              .setDescription("Choose a subcategory:"),
+          ],
           components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(subSelect)],
         });
       } else {
@@ -278,166 +255,174 @@ export async function handleShopInteraction(
       return;
     }
 
-    const shopMsg = await buildShopMessage(interaction.user.id, serverId, server, catId);
-    // Replace category row with the item select, append others
+    const shopMsg = await buildShopMessage(interaction.user.id, guildId, catId);
     const itemRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(itemSelect);
-    // Keep cat select as first row, item select as second, then basket rows
     const existingRows = shopMsg.components as ActionRowBuilder<StringSelectMenuBuilder | ButtonBuilder>[];
-    const basketRows = existingRows.slice(1); // skip the cat row we rebuild
-    const rows: ActionRowBuilder<StringSelectMenuBuilder | ButtonBuilder>[] = [existingRows[0]!, itemRow, ...basketRows];
-    // Max 5 rows
-    await interaction.update({ ...shopMsg, components: rows.slice(0, 5) } as Parameters<typeof interaction.update>[0]);
+    const basketRows = existingRows.slice(1);
+    const rows = [existingRows[0]!, itemRow, ...basketRows];
+    await interaction.update({
+      ...shopMsg,
+      components: rows.slice(0, 5),
+    } as Parameters<typeof interaction.update>[0]);
     return;
   }
 
-  // Item select (add to basket): shop:s<id>:itms — value = "<srvId>:<productId>"
-  const itmsMatch = id.match(/^shop:s(\d+):itms$/);
+  // Item select (add to basket via modal): shop:g<guildId>:itms — value = "<productId>"
+  const itmsMatch = id.match(/^shop:g(\d+):itms$/);
   if (itmsMatch && interaction.isStringSelectMenu()) {
-    const [srvIdStr, productIdStr] = interaction.values[0]!.split(":");
-    const serverId = Number(srvIdStr);
-    const productId = Number(productIdStr);
-    const basket = getBasket(interaction.user.id, serverId);
+    const guildId = itmsMatch[1]!;
+    const productId = Number(interaction.values[0]);
     const product = await db.getShopProductById(productId);
-    if (!product) { await interaction.update({ content: "Item not found.", embeds: [], components: [] }); return; }
 
-    const current = basket.get(productId) ?? 0;
-    basket.set(productId, current + 1);
-
-    const server = await db.getServerById(serverId);
-    if (!server) { await interaction.update({ content: "Server not found.", embeds: [], components: [] }); return; }
-    const msg = await buildShopMessage(interaction.user.id, serverId, server);
-    await interaction.update(msg as Parameters<typeof interaction.update>[0]);
+    await interaction.showModal(
+      new ModalBuilder()
+        .setCustomId(`shop:g${guildId}:qty:${productId}`)
+        .setTitle(product ? `Add — ${product.name}` : "Add to basket")
+        .addComponents(
+          new ActionRowBuilder<TextInputBuilder>().addComponents(
+            new TextInputBuilder()
+              .setCustomId("qty")
+              .setLabel("How many?")
+              .setStyle(TextInputStyle.Short)
+              .setRequired(true)
+              .setPlaceholder("Enter a number, e.g. 5")
+              .setMinLength(1)
+              .setMaxLength(3)
+          )
+        )
+    );
     return;
   }
 
-  // Remove item: shop:s<id>:rm — value = "<srvId>:<productId>"
-  const rmMatch = id.match(/^shop:s(\d+):rm$/);
+  // Remove item: shop:g<guildId>:rm — value = "<productId>"
+  const rmMatch = id.match(/^shop:g(\d+):rm$/);
   if (rmMatch && interaction.isStringSelectMenu()) {
-    const [srvIdStr, productIdStr] = interaction.values[0]!.split(":");
-    const serverId = Number(srvIdStr);
-    const productId = Number(productIdStr);
-    const basket = getBasket(interaction.user.id, serverId);
+    const guildId = rmMatch[1]!;
+    const productId = Number(interaction.values[0]);
+    const basket = getBasket(interaction.user.id, guildId);
     basket.delete(productId);
-    const server = await db.getServerById(serverId);
-    if (!server) { await interaction.update({ content: "Server not found.", embeds: [], components: [] }); return; }
-    const msg = await buildShopMessage(interaction.user.id, serverId, server);
+    const msg = await buildShopMessage(interaction.user.id, guildId);
     await interaction.update(msg as Parameters<typeof interaction.update>[0]);
     return;
   }
 
-  // Adjust qty — show qty buttons: shop:s<id>:adj — value = "<srvId>:<productId>"
-  const adjMatch = id.match(/^shop:s(\d+):adj$/);
+  // Adjust qty — show modal: shop:g<guildId>:adj — value = "<productId>"
+  const adjMatch = id.match(/^shop:g(\d+):adj$/);
   if (adjMatch && interaction.isStringSelectMenu()) {
-    const [srvIdStr, productIdStr] = interaction.values[0]!.split(":");
-    const serverId = Number(srvIdStr);
-    const productId = Number(productIdStr);
-    const basket = getBasket(interaction.user.id, serverId);
+    const guildId = adjMatch[1]!;
+    const productId = Number(interaction.values[0]);
+    const basket = getBasket(interaction.user.id, guildId);
     const current = basket.get(productId) ?? 1;
     const product = await db.getShopProductById(productId);
-    const currency = await getCurrency(serverId);
 
-    const qtyRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      [1, 2, 3, 5, 10].map(q =>
-        new ButtonBuilder()
-          .setCustomId(`shop:s${serverId}:aq:${productId}:${q}`)
-          .setLabel(`x${q}`)
-          .setStyle(q === current ? ButtonStyle.Primary : ButtonStyle.Secondary)
-      )
+    await interaction.showModal(
+      new ModalBuilder()
+        .setCustomId(`shop:g${guildId}:adjmod:${productId}`)
+        .setTitle(product ? `Change qty — ${product.name}` : "Change quantity")
+        .addComponents(
+          new ActionRowBuilder<TextInputBuilder>().addComponents(
+            new TextInputBuilder()
+              .setCustomId("qty")
+              .setLabel("New quantity")
+              .setStyle(TextInputStyle.Short)
+              .setRequired(true)
+              .setPlaceholder(`Currently: ${current}`)
+              .setValue(String(current))
+              .setMinLength(1)
+              .setMaxLength(3)
+          )
+        )
     );
-    const backRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder()
-        .setCustomId(`shop:s${serverId}:back`)
-        .setLabel("Back to Basket")
-        .setStyle(ButtonStyle.Secondary)
-    );
-
-    const embed = new EmbedBuilder()
-      .setTitle(`Adjust quantity — ${product?.name ?? "Item"}`)
-      .setDescription(`Current: **x${current}**  |  Price per unit: **${product?.price ?? "?"} ${currency}**`)
-      .setColor(0xe07a32);
-
-    await interaction.update({ embeds: [embed], components: [qtyRow, backRow] });
     return;
   }
 
-  // Qty set button: shop:s<id>:aq:<productId>:<qty>
-  const aqMatch = id.match(/^shop:s(\d+):aq:(\d+):(\d+)$/);
-  if (aqMatch && interaction.isButton()) {
-    const serverId = Number(aqMatch[1]);
-    const productId = Number(aqMatch[2]);
-    const qty = Number(aqMatch[3]);
-    const basket = getBasket(interaction.user.id, serverId);
-    basket.set(productId, qty);
-    const server = await db.getServerById(serverId);
-    if (!server) { await interaction.update({ content: "Server not found.", embeds: [], components: [] }); return; }
-    const msg = await buildShopMessage(interaction.user.id, serverId, server);
-    await interaction.update(msg as Parameters<typeof interaction.update>[0]);
-    return;
-  }
-
-  // Back to basket: shop:s<id>:back
-  const backMatch = id.match(/^shop:s(\d+):back$/);
-  if (backMatch && interaction.isButton()) {
-    const serverId = Number(backMatch[1]);
-    const server = await db.getServerById(serverId);
-    if (!server) { await interaction.update({ content: "Server not found.", embeds: [], components: [] }); return; }
-    const msg = await buildShopMessage(interaction.user.id, serverId, server);
-    await interaction.update(msg as Parameters<typeof interaction.update>[0]);
-    return;
-  }
-
-  // Cancel basket: shop:s<id>:cancel
-  const cancelMatch = id.match(/^shop:s(\d+):cancel$/);
+  // Cancel basket: shop:g<guildId>:cancel
+  const cancelMatch = id.match(/^shop:g(\d+):cancel$/);
   if (cancelMatch && interaction.isButton()) {
-    const serverId = Number(cancelMatch[1]);
-    clearBasket(interaction.user.id, serverId);
-    const server = await db.getServerById(serverId);
-    if (!server) { await interaction.update({ content: "Basket cleared.", embeds: [], components: [] }); return; }
-    const msg = await buildShopMessage(interaction.user.id, serverId, server);
+    const guildId = cancelMatch[1]!;
+    clearBasket(interaction.user.id, guildId);
+    const msg = await buildShopMessage(interaction.user.id, guildId);
     await interaction.update(msg as Parameters<typeof interaction.update>[0]);
     return;
   }
 
-  // Complete purchase: shop:s<id>:buy
-  const buyMatch = id.match(/^shop:s(\d+):buy$/);
+  // Complete purchase: shop:g<guildId>:buy
+  const buyMatch = id.match(/^shop:g(\d+):buy$/);
   if (buyMatch && interaction.isButton()) {
-    await completePurchase(interaction, Number(buyMatch[1]));
+    await completePurchase(interaction, buyMatch[1]!);
+    return;
+  }
+}
+
+// ---- Modal submit handler ----
+
+export async function handleShopModalSubmit(interaction: ModalSubmitInteraction): Promise<void> {
+  const id = interaction.customId;
+
+  // Add item to basket: shop:g<guildId>:qty:<productId>
+  const qtyMatch = id.match(/^shop:g(\d+):qty:(\d+)$/);
+  if (qtyMatch) {
+    const guildId = qtyMatch[1]!;
+    const productId = Number(qtyMatch[2]);
+    const raw = interaction.fields.getTextInputValue("qty");
+    const qty = Math.max(1, Math.min(99, parseInt(raw, 10) || 1));
+
+    const basket = getBasket(interaction.user.id, guildId);
+    const current = basket.get(productId) ?? 0;
+    basket.set(productId, current + qty);
+
+    await interaction.deferUpdate();
+    const msg = await buildShopMessage(interaction.user.id, guildId);
+    await interaction.editReply(msg as Parameters<typeof interaction.editReply>[0]);
+    return;
+  }
+
+  // Adjust existing basket item: shop:g<guildId>:adjmod:<productId>
+  const adjMatch = id.match(/^shop:g(\d+):adjmod:(\d+)$/);
+  if (adjMatch) {
+    const guildId = adjMatch[1]!;
+    const productId = Number(adjMatch[2]);
+    const raw = interaction.fields.getTextInputValue("qty");
+    const qty = Math.max(1, Math.min(99, parseInt(raw, 10) || 1));
+
+    const basket = getBasket(interaction.user.id, guildId);
+    basket.set(productId, qty);
+
+    await interaction.deferUpdate();
+    const msg = await buildShopMessage(interaction.user.id, guildId);
+    await interaction.editReply(msg as Parameters<typeof interaction.editReply>[0]);
     return;
   }
 }
 
 // ---- Complete purchase ----
 
-async function completePurchase(interaction: ButtonInteraction, serverId: number): Promise<void> {
-  const basket = getBasket(interaction.user.id, serverId);
+async function completePurchase(interaction: ButtonInteraction, guildId: string): Promise<void> {
+  const basket = getBasket(interaction.user.id, guildId);
   if (basket.size === 0) {
     await interaction.update({ content: "Your basket is empty.", embeds: [], components: [] });
     return;
   }
 
-  const ingameName = await getIngameName(serverId, interaction.user.id);
-  if (!ingameName) {
-    await interaction.update({ content: "You must link your account first. Use /link.", embeds: [], components: [] });
-    return;
-  }
-
-  const server = await db.getServerById(serverId);
-  if (!server?.rcon_host) {
-    await interaction.update({ content: "Server RCON is not configured.", embeds: [], components: [] });
-    return;
-  }
-
-  const closedUntil = shopClosed.get(serverId);
+  const closedUntil = shopClosed.get(guildId);
   if (closedUntil && Date.now() < closedUntil) {
     const mins = Math.ceil((closedUntil - Date.now()) / 60000);
     await interaction.update({ content: `The shop is closed for ~${mins} more minute(s).`, embeds: [], components: [] });
     return;
   }
 
-  const currency = await getCurrency(serverId);
-  const balance = await db.getBalance(serverId, ingameName);
+  // Find player's linked server for delivery
+  const playerInfo = await getPlayerForShop(guildId, interaction.user.id);
+  if (!playerInfo) {
+    await interaction.update({ content: "You must link your account first. Use /link.", embeds: [], components: [] });
+    return;
+  }
+  const { server, ingameName } = playerInfo;
 
-  // Resolve all basket items and validate
+  const currency = await getGuildCurrency(guildId);
+  const balance = await db.getBalance(server.id, ingameName);
+
+  // Resolve and validate all basket items
   const items: Array<{ product: db.ShopProductRow; qty: number }> = [];
   let totalCost = 0;
 
@@ -446,9 +431,8 @@ async function completePurchase(interaction: ButtonInteraction, serverId: number
     if (!product) continue;
     const effectiveQty = isKit(product.shortname) ? 1 : qty;
 
-    // Cooldown check
     if (product.timer_hours > 0) {
-      const last = await db.getLastShopPurchase(serverId, ingameName, pid);
+      const last = await db.getLastShopPurchase(server.id, ingameName, pid);
       if (last) {
         const remaining = new Date(last.purchased_at).getTime() + product.timer_hours * 3600_000 - Date.now();
         if (remaining > 0) {
@@ -464,7 +448,6 @@ async function completePurchase(interaction: ButtonInteraction, serverId: number
       }
     }
 
-    // Stock check
     if (product.stock !== -1 && product.stock < effectiveQty) {
       await interaction.update({
         content: `**${product.name}** only has ${product.stock} left${product.stock === 0 ? " (out of stock)" : " — reduce your quantity"}.`,
@@ -478,7 +461,6 @@ async function completePurchase(interaction: ButtonInteraction, serverId: number
     totalCost += product.price * effectiveQty;
   }
 
-  // Balance check
   if (balance < totalCost) {
     await interaction.update({
       content: `You need **${totalCost} ${currency}** but only have **${balance} ${currency}**.`,
@@ -488,10 +470,8 @@ async function completePurchase(interaction: ButtonInteraction, serverId: number
     return;
   }
 
-  // Deduct coins
-  await db.updateBalance(serverId, ingameName, -totalCost);
+  await db.updateBalance(server.id, ingameName, -totalCost);
 
-  // Deliver all via RCON
   const delivered: string[] = [];
   const failed: string[] = [];
 
@@ -499,31 +479,29 @@ async function completePurchase(interaction: ButtonInteraction, serverId: number
     try {
       if (isKit(product.shortname)) {
         await rconManager.sendFireAndForget(
-          server.id, server.rcon_host, server.rcon_port!, server.rcon_password!,
+          server.id, server.rcon_host!, server.rcon_port!, server.rcon_password!,
           `giveto ${ingameName} ${kitName(product.shortname)}`
         );
       } else {
         for (let i = 0; i < qty; i++) {
           await rconManager.sendFireAndForget(
-            server.id, server.rcon_host, server.rcon_port!, server.rcon_password!,
+            server.id, server.rcon_host!, server.rcon_port!, server.rcon_password!,
             `inventory.give "${ingameName}" "${product.shortname}" 1`
           );
         }
       }
       delivered.push(`[${qty}x] ${product.name}`);
       if (product.stock !== -1) await db.decrementShopStock(product.id, qty);
-      await db.recordShopPurchase(serverId, ingameName, product.id);
+      await db.recordShopPurchase(server.id, ingameName, product.id);
     } catch {
       failed.push(product.name);
-      await db.updateBalance(serverId, ingameName, product.price * qty); // refund this item
+      await db.updateBalance(server.id, ingameName, product.price * qty);
     }
   }
 
-  // Clear basket
-  clearBasket(interaction.user.id, serverId);
-  const newBalance = await db.getBalance(serverId, ingameName);
+  clearBasket(interaction.user.id, guildId);
+  const newBalance = await db.getBalance(server.id, ingameName);
 
-  // Log to cmd-logs
   if (interaction.guild) {
     const logsChannelId = await db.getChannel(server.id, "cmd-logs");
     if (logsChannelId) {
@@ -537,15 +515,13 @@ async function completePurchase(interaction: ButtonInteraction, serverId: number
     }
   }
 
-  // Build success embed
-  const successLines = delivered.map(d => `• ${d}`);
   const failLines = failed.length > 0 ? `\n\n**Failed to deliver:** ${failed.join(", ")} (refunded)` : "";
 
   const embed = new EmbedBuilder()
     .setTitle("Purchase Summary")
     .setColor(0x3dba8c)
     .setDescription(
-      `**Successful (Items Sent)**\n${successLines.join("\n")}${failLines}\n\n` +
+      `**Successful (Items Sent)**\n${delivered.map(d => `• ${d}`).join("\n")}${failLines}\n\n` +
       `Old Balance: ${balance}\nNew Balance: ${newBalance}\n` +
       `Use \`here, take this\` in-game to claim your purchases!`
     )
@@ -554,7 +530,62 @@ async function completePurchase(interaction: ButtonInteraction, serverId: number
   await interaction.update({ embeds: [embed], components: [] });
 }
 
+// ---- Admin autocomplete helpers ----
+
+const COMMON_RUST_ITEMS = [
+  "rifle.ak", "rifle.lr300", "rifle.bolt", "rifle.semiauto", "lmg.m249",
+  "smg.mp5", "smg.thompson", "smg.2", "pistol.revolver", "pistol.semiauto",
+  "pistol.m92", "pistol.python", "shotgun.pump", "shotgun.spas12", "shotgun.waterpipe",
+  "crossbow", "bow.hunting", "grenade.f1", "explosive.timed", "supply.signal",
+  "metal.facemask", "metal.plate.torso", "roadsign.jacket", "roadsign.kilt",
+  "bucket.helmet", "wood.armor.helmet", "wood.armor.jacket", "wood.armor.pants",
+  "shoes.boots", "hoodie", "pants", "tshirt", "jacket", "mask.balaclava",
+  "bandage", "syringe.medical", "largemedkit",
+  "can.tuna", "can.beans", "corn", "pumpkin", "mushroom", "blueberries",
+  "wood", "stone", "metal.fragments", "metal.ore", "hq.metal.ore", "sulfur",
+  "gunpowder", "techparts", "scrap", "rope", "tarp", "cloth", "leather",
+  "hatchet", "pickaxe", "chainsaw", "jackhammer",
+  "box.wooden.large", "cupboard.tool", "lock.code",
+  "door.hinged.wood", "door.hinged.metal", "door.hinged.toptier",
+  "barricade.sandbag", "barricade.metal",
+  "gates.external.high.wood", "gates.external.high.stone",
+  "explosive", "sulfur.ore", "fat.animal", "bone.fragments",
+];
+
+export async function autocompleteShopAdmin(interaction: AutocompleteInteraction): Promise<void> {
+  if (!interaction.guild) { await interaction.respond([]); return; }
+  const focused = interaction.options.getFocused(true);
+
+  if (focused.name === "category" || focused.name === "parent") {
+    const categories = await db.getShopCategoriesByGuild(interaction.guild.id).catch(() => []);
+    const query = focused.value.toLowerCase();
+    const matches = categories
+      .filter(c => c.name.toLowerCase().includes(query))
+      .slice(0, 25)
+      .map(c => ({ name: c.name, value: c.name }));
+    await interaction.respond(matches);
+    return;
+  }
+
+  if (focused.name === "shortname") {
+    const query = focused.value.toLowerCase();
+    const matches = COMMON_RUST_ITEMS
+      .filter(s => s.includes(query))
+      .slice(0, 25)
+      .map(s => ({ name: s, value: s }));
+    await interaction.respond(matches);
+    return;
+  }
+
+  await interaction.respond([]);
+}
+
 // ---- Admin commands ----
+
+async function getGuildPrimaryServer(guildId: string) {
+  const servers = await db.getServersByGuild(guildId);
+  return servers[0] ?? null;
+}
 
 export async function handleAdminShopCreateShop(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!await requireRole(interaction, "avivadmin")) return;
@@ -563,40 +594,55 @@ export async function handleAdminShopCreateShop(interaction: ChatInputCommandInt
 
 export async function handleAdminShopDeleteShop(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!await requireRole(interaction, "avivadmin")) return;
-  const server = await getServerForInteraction(interaction);
-  if (!server) return;
-  await db.db.execute({ sql: "DELETE FROM shop_products WHERE category_id IN (SELECT id FROM shop_categories WHERE server_id = ?)", args: [server.id] });
-  await db.db.execute({ sql: "DELETE FROM shop_categories WHERE server_id = ?", args: [server.id] });
+  if (!interaction.guild) return;
+  const servers = await db.getServersByGuild(interaction.guild.id);
+  for (const s of servers) {
+    await db.db.execute({
+      sql: "DELETE FROM shop_products WHERE category_id IN (SELECT id FROM shop_categories WHERE server_id = ?)",
+      args: [s.id],
+    });
+    await db.db.execute({ sql: "DELETE FROM shop_categories WHERE server_id = ?", args: [s.id] });
+  }
   await interaction.reply({ content: "Shop deleted.", flags: MessageFlags.Ephemeral });
 }
 
 export async function handleAdminShopAddCategory(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!await requireRole(interaction, "avivadmin")) return;
-  const server = await getServerForInteraction(interaction);
-  if (!server) return;
+  if (!interaction.guild) return;
+  const primary = await getGuildPrimaryServer(interaction.guild.id);
+  if (!primary) {
+    await interaction.reply({ content: "No servers configured yet. Add one with /add-server first.", flags: MessageFlags.Ephemeral });
+    return;
+  }
   const name = interaction.options.getString("name", true);
   const type = interaction.options.getString("type") ?? "item";
-  const id = await db.addShopCategory(server.id, name, null, type);
-  await interaction.reply({ content: `Category **${name}** created (ID: ${id}). Players will see it in /shop.`, flags: MessageFlags.Ephemeral });
+  await db.addShopCategory(primary.id, name, null, type);
+  await interaction.reply({ content: `Category **${name}** created. Players will see it in /shop.`, flags: MessageFlags.Ephemeral });
 }
 
 export async function handleAdminShopAddSubcategory(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!await requireRole(interaction, "avivadmin")) return;
-  const server = await getServerForInteraction(interaction);
-  if (!server) return;
+  if (!interaction.guild) return;
+  const primary = await getGuildPrimaryServer(interaction.guild.id);
+  if (!primary) {
+    await interaction.reply({ content: "No servers configured yet.", flags: MessageFlags.Ephemeral });
+    return;
+  }
   const name = interaction.options.getString("name", true);
   const parentName = interaction.options.getString("parent", true);
-  const categories = await db.getShopCategories(server.id);
+  const categories = await db.getShopCategoriesByGuild(interaction.guild.id);
   const parent = categories.find(c => c.name.toLowerCase() === parentName.toLowerCase());
-  if (!parent) { await interaction.reply({ content: `Category "${parentName}" not found.`, flags: MessageFlags.Ephemeral }); return; }
-  const id = await db.addShopCategory(server.id, name, parent.id, "item");
-  await interaction.reply({ content: `Subcategory **${name}** under **${parent.name}** created (ID: ${id}).`, flags: MessageFlags.Ephemeral });
+  if (!parent) {
+    await interaction.reply({ content: `Category "${parentName}" not found.`, flags: MessageFlags.Ephemeral });
+    return;
+  }
+  await db.addShopCategory(primary.id, name, parent.id, "item");
+  await interaction.reply({ content: `Subcategory **${name}** under **${parent.name}** created.`, flags: MessageFlags.Ephemeral });
 }
 
 export async function handleAdminShopAddItem(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!await requireRole(interaction, "avivadmin")) return;
-  const server = await getServerForInteraction(interaction);
-  if (!server) return;
+  if (!interaction.guild) return;
   const name = interaction.options.getString("name", true);
   const shortname = interaction.options.getString("shortname", true);
   const price = interaction.options.getInteger("price", true);
@@ -604,32 +650,48 @@ export async function handleAdminShopAddItem(interaction: ChatInputCommandIntera
   const timerHours = interaction.options.getInteger("timer_hours") ?? 0;
   const stock = interaction.options.getInteger("stock") ?? -1;
 
-  const categories = await db.getShopCategories(server.id);
+  const categories = await db.getShopCategoriesByGuild(interaction.guild.id);
   const cat = categories.find(c => c.name.toLowerCase() === categoryName.toLowerCase());
-  if (!cat) { await interaction.reply({ content: `Category "${categoryName}" not found. Create it first with /admin-shop-add-category.`, flags: MessageFlags.Ephemeral }); return; }
+  if (!cat) {
+    await interaction.reply({
+      content: `Category "${categoryName}" not found. Create it first with /admin-shop-add-category.`,
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
 
   const id = await db.addShopProduct(cat.id, name, shortname, price, timerHours);
   if (stock !== -1) {
     await db.db.execute({ sql: "UPDATE shop_products SET stock = ? WHERE id = ?", args: [stock, id] });
   }
-  await interaction.reply({ content: `Item **${name}** (\`${shortname}\`) added to **${cat.name}** for ${price} ${(await getCurrency(server.id))} (ID: ${id}).`, flags: MessageFlags.Ephemeral });
+  const currency = await getGuildCurrency(interaction.guild.id);
+  await interaction.reply({
+    content: `Item **${name}** (\`${shortname}\`) added to **${cat.name}** for ${price} ${currency}.`,
+    flags: MessageFlags.Ephemeral,
+  });
 }
 
 export async function handleAdminShopAddKit(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!await requireRole(interaction, "avivadmin")) return;
-  const server = await getServerForInteraction(interaction);
-  if (!server) return;
+  if (!interaction.guild) return;
   const kName = interaction.options.getString("kit_name", true);
   const price = interaction.options.getInteger("price", true);
   const categoryName = interaction.options.getString("category", true);
   const timerHours = interaction.options.getInteger("timer_hours") ?? 0;
 
-  const categories = await db.getShopCategories(server.id);
+  const categories = await db.getShopCategoriesByGuild(interaction.guild.id);
   const cat = categories.find(c => c.name.toLowerCase() === categoryName.toLowerCase());
-  if (!cat) { await interaction.reply({ content: `Category "${categoryName}" not found.`, flags: MessageFlags.Ephemeral }); return; }
+  if (!cat) {
+    await interaction.reply({ content: `Category "${categoryName}" not found.`, flags: MessageFlags.Ephemeral });
+    return;
+  }
 
   const id = await db.addShopProduct(cat.id, kName, `kit:${kName}`, price, timerHours);
-  await interaction.reply({ content: `Kit **${kName}** added to **${cat.name}** for ${price} ${(await getCurrency(server.id))} (ID: ${id}).`, flags: MessageFlags.Ephemeral });
+  const currency = await getGuildCurrency(interaction.guild.id);
+  await interaction.reply({
+    content: `Kit **${kName}** added to **${cat.name}** for ${price} ${currency}.`,
+    flags: MessageFlags.Ephemeral,
+  });
 }
 
 export async function handleAdminShopEditProduct(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -651,17 +713,15 @@ export async function handleAdminShopRemoveProduct(interaction: ChatInputCommand
 
 export async function handleDelayshop(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!await requireRole(interaction, "avivadmin")) return;
-  const server = await getServerForInteraction(interaction);
-  if (!server) return;
+  if (!interaction.guild) return;
   const minutes = interaction.options.getInteger("minutes", true);
-  shopClosed.set(server.id, Date.now() + minutes * 60000);
+  shopClosed.set(interaction.guild.id, Date.now() + minutes * 60000);
   await interaction.reply({ content: `Shop closed for ${minutes} minute(s).`, flags: MessageFlags.Ephemeral });
 }
 
 export async function handleOpenshop(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!await requireRole(interaction, "avivadmin")) return;
-  const server = await getServerForInteraction(interaction);
-  if (!server) return;
-  shopClosed.delete(server.id);
+  if (!interaction.guild) return;
+  shopClosed.delete(interaction.guild.id);
   await interaction.reply({ content: "Shop reopened.", flags: MessageFlags.Ephemeral });
 }

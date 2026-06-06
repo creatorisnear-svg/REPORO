@@ -2,11 +2,11 @@ import type { Interaction } from "discord.js";
 import { MessageFlags } from "discord.js";
 import { commands } from "../commands/registry.js";
 import { handleAvivButton } from "../commands/handlers/setup.js";
-import { handleShopInteraction } from "../commands/handlers/shop.js";
+import { handleShopInteraction, handleShopModalSubmit } from "../commands/handlers/shop.js";
 import { autocompleteServer } from "../commands/handlers/utils.js";
 
 function isShopInteraction(customId: string): boolean {
-  return customId === "shop:srv" || customId.startsWith("shop:s");
+  return customId === "shop:srv" || customId.startsWith("shop:g");
 }
 
 export async function handleInteractionCreate(interaction: Interaction): Promise<void> {
@@ -22,6 +22,14 @@ export async function handleInteractionCreate(interaction: Interaction): Promise
     if (cmd?.autocomplete) {
       await cmd.autocomplete(interaction);
     }
+    return;
+  }
+
+  // Handle shop quantity/adjust modals
+  if (interaction.isModalSubmit() && interaction.customId.startsWith("shop:g")) {
+    await handleShopModalSubmit(interaction).catch(err => {
+      console.error("[Bot] Shop modal error:", err);
+    });
     return;
   }
 
