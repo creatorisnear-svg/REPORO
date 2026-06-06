@@ -899,7 +899,7 @@ export async function getSubscriptionServerCount(guildId: string): Promise<numbe
     args: [guildId]
   });
   const row = r.rows[0] as Record<string, unknown> | undefined;
-  return Number(row?.["server_count"] ?? 1);
+  return Number(row?.["server_count"] ?? 999);
 }
 
 export async function getSubscriptionByGuild(guildId: string): Promise<SubscriptionRow | null> {

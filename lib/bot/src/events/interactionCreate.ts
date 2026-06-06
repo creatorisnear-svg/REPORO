@@ -3,6 +3,10 @@ import { commands } from "../commands/registry.js";
 import { handleAvivButton } from "../commands/handlers/setup.js";
 import { handleShopInteraction } from "../commands/handlers/shop.js";
 
+function isShopInteraction(customId: string): boolean {
+  return customId === "shop:srv" || customId.startsWith("shop:s");
+}
+
 export async function handleInteractionCreate(interaction: Interaction): Promise<void> {
   if (interaction.isAutocomplete()) {
     const cmd = commands.find(c => c.data.name === interaction.commandName);
@@ -23,7 +27,7 @@ export async function handleInteractionCreate(interaction: Interaction): Promise
   // Handle all shop interactions (select menus + buttons)
   if (
     (interaction.isStringSelectMenu() || interaction.isButton()) &&
-    (interaction.customId.startsWith("shop:") || interaction.customId === "shop:srv")
+    isShopInteraction(interaction.customId)
   ) {
     await handleShopInteraction(interaction).catch(err => {
       console.error("[Bot] Shop interaction error:", err);
