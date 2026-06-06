@@ -1,0 +1,5 @@
+- [libsql esbuild externals](libsql-esbuild.md) — @libsql/* and libsql must be in esbuild external list (native binaries crash if bundled)
+- [Stripe API version](stripe-api-version.md) — Stripe v17 npm package uses apiVersion "2025-02-24.acacia" not any newer basil version
+- [discord.js SlashCommandOptionsOnlyBuilder](discordjs-command-type.md) — adding options to SlashCommandBuilder returns SlashCommandOptionsOnlyBuilder; Command.data union must include it
+- [Static files build copy](static-files-build.md) — esbuild bundles to dist/ but static HTML lives in src/public/; must cp src/public to dist/public in build.mjs
+- [Aviv Bot architecture](aviv-bot-arch.md) — bot runs inside api-server process; parser exports initParser (not handleRconLog); rconManager re-exported from @workspace/bot

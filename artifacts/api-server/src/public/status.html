@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Status - Aviv Bot</title>
+  <link rel="stylesheet" href="/style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
+</head>
+<body>
+<nav>
+  <div class="nav-logo">&#9889; Aviv Bot</div>
+  <ul class="nav-links">
+    <li><a href="/">Home</a></li>
+    <li><a href="/pricing">Pricing</a></li>
+    <li><a href="/docs">Docs</a></li>
+    <li><a href="/status">Status</a></li>
+  </ul>
+  <a href="/pricing" class="btn btn-primary">Get Started</a>
+</nav>
+
+<div class="container">
+  <h2>System Status</h2>
+  <p style="color:var(--muted); margin-bottom:2rem;">Current operational status of Aviv Bot services.</p>
+
+  <div class="status-grid">
+    <div class="status-item">
+      <span><span class="status-dot"></span>Discord Bot Gateway</span>
+      <span id="bot-status" style="color:var(--success)">Checking...</span>
+    </div>
+    <div class="status-item">
+      <span><span class="status-dot"></span>API Server</span>
+      <span style="color:var(--success)">Operational</span>
+    </div>
+    <div class="status-item">
+      <span><span class="status-dot"></span>Database</span>
+      <span id="db-status" style="color:var(--success)">Checking...</span>
+    </div>
+    <div class="status-item">
+      <span><span class="status-dot"></span>Stripe Payments</span>
+      <span id="stripe-status" style="color:var(--muted)">Not Configured</span>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <p>Aviv Bot &copy; 2025 - Built for Rust Console Edition communities</p>
+</footer>
+
+<script>
+fetch('/api/healthz').then(r => r.json()).then(d => {
+  document.getElementById('bot-status').textContent = d.ok ? 'Operational' : 'Degraded';
+  document.getElementById('db-status').textContent = 'Operational';
+}).catch(() => {
+  document.getElementById('bot-status').textContent = 'Unknown';
+  document.getElementById('db-status').textContent = 'Unknown';
+});
+</script>
+</body>
+</html>

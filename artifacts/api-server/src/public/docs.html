@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Docs - Aviv Bot</title>
+  <link rel="stylesheet" href="/style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
+</head>
+<body>
+<nav>
+  <div class="nav-logo">&#9889; Aviv Bot</div>
+  <ul class="nav-links">
+    <li><a href="/">Home</a></li>
+    <li><a href="/pricing">Pricing</a></li>
+    <li><a href="/docs">Docs</a></li>
+    <li><a href="/status">Status</a></li>
+  </ul>
+  <a href="/pricing" class="btn btn-primary">Get Started</a>
+</nav>
+
+<div class="docs-layout">
+  <aside class="docs-sidebar">
+    <ul>
+      <li><a href="#quickstart">Quick Start</a></li>
+      <li><a href="#setup">Setup</a></li>
+      <li><a href="#linking">Player Linking</a></li>
+      <li><a href="#economy">Economy</a></li>
+      <li><a href="#gambling">Gambling</a></li>
+      <li><a href="#shop">Shop</a></li>
+      <li><a href="#kits">Kits</a></li>
+      <li><a href="#lists">Lists</a></li>
+      <li><a href="#prison">Prison</a></li>
+      <li><a href="#zorp">ZORP</a></li>
+      <li><a href="#raidalerts">Raid Alerts</a></li>
+      <li><a href="#moderation">Moderation</a></li>
+      <li><a href="#configs">Configs</a></li>
+    </ul>
+  </aside>
+
+  <main class="docs-content">
+    <h1>Aviv Bot Documentation</h1>
+
+    <h2 id="quickstart">Quick Start</h2>
+    <p>Add Aviv Bot to your server, then run <code>/setup</code> to create all required roles and channels automatically.</p>
+    <p>Next, use <code>/add-server</code> with your RCON host, port, and password to connect your Rust server.</p>
+    <p>Assign the <strong>avivadmin</strong> role to server administrators and <strong>avivmod</strong> to moderators.</p>
+
+    <h2 id="setup">Setup Commands</h2>
+    <p><code>/setup</code> - Creates avivadmin, avivmod, avivlinked, vip-1, recycler-1, zorp-1 roles and all feed channels.</p>
+    <p><code>/add-server [server] [host] [port] [password]</code> - Connect a Rust server via WebRCON.</p>
+    <p><code>/remove-server [server]</code> - Deactivate a server connection.</p>
+    <p><code>/diag</code> - Check RCON connection health and ping.</p>
+    <p><code>/aviv</code> - Open the control panel embed.</p>
+    <p><code>/set [config] [value]</code> - Change any bot setting (use autocomplete).</p>
+    <p><code>/configs</code> - View all current settings for a server.</p>
+    <p><code>/admin-channels [feed] [channel]</code> - Assign a Discord channel to a feed type.</p>
+    <p><code>/admin-positions list/add/remove</code> - Manage teleport positions.</p>
+    <p><code>/admin-scheduler list/add/remove</code> - Manage scheduled in-game messages.</p>
+
+    <h2 id="linking">Player Linking</h2>
+    <p>Players must link their Discord to their in-game name to use economy, gambling, and other features.</p>
+    <p><code>/link [ingame_name]</code> - Link your Discord account.</p>
+    <p><code>/unlink</code> - Remove your link.</p>
+    <p><code>/admin-link [ingame_name] [discord_user]</code> - Force-link a player (admin).</p>
+    <p><code>/whois</code> - Look up a link by Discord user or in-game name.</p>
+    <p><code>/sync-me</code> - Re-sync your list roles.</p>
+    <p><code>/get-playerinfo [ingame_name]</code> - View all info about a player (admin).</p>
+
+    <h2 id="economy">Economy</h2>
+    <p><code>/balance</code> - Check your coin balance.</p>
+    <p><code>/daily</code> - Claim a daily coin reward (20h cooldown).</p>
+    <p><code>/transfer [player] [amount]</code> - Send coins to another linked player.</p>
+    <p><code>/swap [amount] [from] [to]</code> - Move coins between servers.</p>
+    <p><code>/leaderboard</code> - View the top 10 earners.</p>
+    <p><code>/setdailyscale [min] [max]</code> - Set the daily reward range (admin).</p>
+    <p><code>/killpoints [type] [amount]</code> - Set coins per kill (admin).</p>
+    <p><code>/add-points-player</code> / <code>/sub-points-player</code> - Adjust one player's balance (admin).</p>
+    <p><code>/add-points-server</code> / <code>/sub-points-server</code> - Adjust all players' balances (admin).</p>
+
+    <h2 id="gambling">Gambling</h2>
+    <p><code>/spin [bet]</code> - Spin the bandit wheel. Outcomes: 3x (5%), 2x (15%), refund (10%), loss (70%).</p>
+    <p><code>/coinflip [bet] [heads/tails]</code> - 50/50 coinflip.</p>
+    <p><code>/blackjack [bet]</code> - Play blackjack against the dealer.</p>
+    <p><code>/maxbet [amount]</code> - Set maximum bet limit (admin).</p>
+
+    <h2 id="shop">Shop</h2>
+    <p><code>/shop</code> - Browse the shop.</p>
+    <p><code>/admin-shop-create-shop</code> - Initialize the shop.</p>
+    <p><code>/admin-shop-add-category [name] [type]</code> - Add a category.</p>
+    <p><code>/admin-shop-add-subcategory [name] [parent]</code> - Add a subcategory.</p>
+    <p><code>/admin-shop-add-item [name] [shortname] [price] [category]</code> - Add an item.</p>
+    <p><code>/admin-shop-add-kit [kit_name] [price] [category]</code> - Add a kit to the shop.</p>
+    <p><code>/delayshop [minutes]</code> - Temporarily close the shop (wipe delay).</p>
+    <p><code>/openshop</code> - Reopen the shop early.</p>
+
+    <h2 id="kits">Kits</h2>
+    <p><code>/givekit [ingame_name] [kit_name]</code> - Give a kit to a player via RCON (admin).</p>
+    <p>Kits are triggered automatically from in-game chat by the RCON parser based on config settings.</p>
+
+    <h2 id="lists">Lists</h2>
+    <p><code>/add-to-list [list] [ingame_name]</code> - Add a player to a list (mod).</p>
+    <p><code>/remove-from-list [list] [ingame_name]</code> - Remove from a list (mod).</p>
+    <p><code>/get-list [list]</code> - View all entries in a list (mod).</p>
+    <p>Common lists: <code>viplist</code>, <code>zorpallowlist</code>, <code>zorpbanlist</code>, <code>prisonlist</code>, <code>recyclerlist</code>, <code>noteblocklist</code>, <code>elitelist1</code>-<code>elitelist44</code>.</p>
+
+    <h2 id="prison">Prison</h2>
+    <p><code>/prison [ingame_name] [duration_minutes] [reason]</code> - Teleport to prison (mod).</p>
+    <p><code>/unprison [ingame_name]</code> - Early release (mod).</p>
+    <p><code>/prison-list</code> - View active prisoners (mod).</p>
+    <p>Configure prison TP position with <code>/admin-positions add type:prison x: y: z:</code>.</p>
+
+    <h2 id="zorp">ZORP</h2>
+    <p><code>/wipe-zorp</code> - Delete all ZORP zones (admin).</p>
+    <p><code>/del-zorp [ingame_name]</code> - Delete one player's zone (admin).</p>
+    <p>ZORP zones are tracked automatically when detected in RCON logs.</p>
+
+    <h2 id="raidalerts">Raid Alerts</h2>
+    <p><code>/raidlink [ingame_name] [frequency]</code> - Register your base broadcaster frequency.</p>
+    <p><code>/list-raidlink</code> - View all registered frequencies (mod).</p>
+    <p><code>/wipe-raidlink</code> - Clear all registrations (admin).</p>
+    <p><code>/del-raidlink [ingame_name]</code> - Remove one registration (admin).</p>
+    <p>When a frequency fires, the registered Discord user gets a DM raid alert automatically.</p>
+
+    <h2 id="moderation">Moderation</h2>
+    <p><code>/kick</code>, <code>/ban</code>, <code>/unban</code> - Player management via RCON.</p>
+    <p><code>/mute</code>, <code>/unmute</code> - In-game chat muting.</p>
+    <p><code>/warn [ingame_name] [reason]</code> - Issue a warning.</p>
+    <p><code>/warnings [ingame_name]</code> - View warning history.</p>
+    <p><code>/clearwarnings [ingame_name]</code> - Clear all warnings (admin).</p>
+
+    <h2 id="configs">Config Keys Reference</h2>
+    <p>Use <code>/set [key] [value]</code> to configure any of the following. Autocomplete shows all options.</p>
+    <pre><code>freekit_use, freekit_time, freekit_name
+vipkit_use, vipkit_time, vipkit_name
+elitekit_use, elitekit_time
+recyclers_use, recyclers_time
+currency_name
+player_kill_points, scientist_kill_points
+daily_min, daily_max
+zorp, zorptime, zorpExpiryTime
+chatbridge
+KillFeedGame, KillFeedDiscord, KillFeedKD
+raidalerts
+SRP, srp-time-monday ... srp-time-sunday
+BountySystem, BountyReward, BountyScale
+prison-location
+TPN_use, TPN_name, TPN_time ... (8 directional TPs)</code></pre>
+  </main>
+</div>
+
+<footer>
+  <p>Aviv Bot &copy; 2025 - Built for Rust Console Edition communities</p>
+</footer>
+</body>
+</html>
