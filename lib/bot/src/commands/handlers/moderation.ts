@@ -16,7 +16,7 @@ async function logCmd(interaction: ChatInputCommandInteraction, server: db.Serve
 
 async function rcon(server: db.ServerRow, cmd: string): Promise<void> {
   if (!server.rcon_host) return;
-  await rconManager.sendCommand(server.id, server.rcon_host, server.rcon_port!, server.rcon_password!, cmd).catch(() => null);
+  await rconManager.sendFireAndForget(server.id, server.rcon_host, server.rcon_port!, server.rcon_password!, cmd).catch(() => null);
 }
 
 export async function handleKick(interaction: ChatInputCommandInteraction): Promise<void> {

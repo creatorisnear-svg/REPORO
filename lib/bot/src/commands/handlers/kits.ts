@@ -20,7 +20,7 @@ export async function handleGivekit(interaction: ChatInputCommandInteraction): P
   }
 
   try {
-    await rconManager.sendCommand(server.id, server.rcon_host, server.rcon_port!, server.rcon_password!, `giveto ${ingameName} ${kitName}`);
+    await rconManager.sendFireAndForget(server.id, server.rcon_host, server.rcon_port!, server.rcon_password!, `giveto ${ingameName} ${kitName}`);
     const logsChannelId = await db.getChannel(server.id, "cmd-logs");
     if (logsChannelId && interaction.guild) {
       const ch = interaction.guild.channels.cache.get(logsChannelId);

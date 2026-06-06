@@ -18,7 +18,7 @@ export async function runZorpExpiryCheck(client: Client): Promise<void> {
 
           // Try to delete zone in-game
           if (server.rcon_host) {
-            await rconManager.sendCommand(
+            await rconManager.sendFireAndForget(
               server.id, server.rcon_host, server.rcon_port!, server.rcon_password!,
               `o.zorp delete ${zone.ingame_name}`
             ).catch(() => null);

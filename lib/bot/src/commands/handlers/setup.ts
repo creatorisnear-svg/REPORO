@@ -2,7 +2,7 @@ import type { ChatInputCommandInteraction, ButtonInteraction } from "discord.js"
 import { PermissionFlagsBits, ChannelType, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } from "discord.js";
 import * as db from "@workspace/db";
 import { rconManager } from "../../rcon/manager.js";
-import { getServerForInteraction, requireRole } from "./utils.js";
+import { getServerForInteraction, requireRole, hasRole } from "./utils.js";
 
 export async function handleSetup(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!interaction.guild) { await interaction.reply({ content: "Must be used in a server.", flags: MessageFlags.Ephemeral }); return; }
@@ -153,8 +153,8 @@ export async function handleAddServer(interaction: ChatInputCommandInteraction):
     content: `Server **${serverNum}** (${label}) added!\nAttempting RCON connection in the background. Use \`/diag\` to check connection status.`,
   });
 
-  // Fire-and-forget RCON test so it does not block or confuse the response
-  rconManager.sendCommand(serverId, host, port, password, "status").catch(err => {
+  // Fire-and-forget RCON connection test - just checks that the WebSocket can open
+  rconManager.connect(serverId, host, port, password).catch(err => {
     console.warn(`[RCON] Initial connection test for server ${serverId} failed: ${err instanceof Error ? err.message : String(err)}`);
   });
 }
@@ -230,9 +230,13 @@ export const CATEGORY_CONFIGS: Record<string, { label: string; keys: string[] }>
 };
 
 export async function handleAviv(interaction: ChatInputCommandInteraction): Promise<void> {
-  if (!await requireRole(interaction, "avivadmin")) return;
   if (!interaction.guild) return;
+  // Defer immediately — must happen within Discord's 3-second window before any async checks
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  if (!hasRole(interaction, "avivadmin")) {
+    await interaction.editReply({ content: "You need the **avivadmin** role to use this command." });
+    return;
+  }
 
   const servers = await db.getServersByGuild(interaction.guild.id);
   if (servers.length === 0) {

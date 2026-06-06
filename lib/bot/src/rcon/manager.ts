@@ -101,6 +101,19 @@ class RconConnection {
     });
   }
 
+  // Fire-and-forget: sends the command without waiting for a response.
+  // Use this for action commands (giveto, inventory.give, teleportpos, etc.)
+  // that execute on the server but may not send back a matching Identifier response.
+  sendFireAndForget(command: string): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      throw new Error(`Server ${this.serverId} RCON not connected`);
+    }
+    this.lastActivity = Date.now();
+    // Use a unique ID so any response is matched and silently ignored
+    const id = ++this.msgId;
+    this.ws.send(JSON.stringify({ Identifier: id, Message: command, Name: "WebRcon" }));
+  }
+
   onLog(fn: LogListener): void {
     this.logListeners.push(fn);
   }
@@ -159,6 +172,13 @@ class RconManager {
   async sendCommand(serverId: number, host: string, port: number, password: string, command: string): Promise<string> {
     const conn = await this.getConnection(serverId, host, port, password);
     return conn.send(command);
+  }
+
+  // Fire-and-forget: connects if needed, then sends the command without waiting for a response.
+  // Use for all in-game action commands (giveto, inventory.give, teleportpos, etc.)
+  async sendFireAndForget(serverId: number, host: string, port: number, password: string, command: string): Promise<void> {
+    const conn = await this.getConnection(serverId, host, port, password);
+    conn.sendFireAndForget(command);
   }
 
   onLog(fn: LogListener): void {

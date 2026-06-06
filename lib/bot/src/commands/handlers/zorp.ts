@@ -22,7 +22,7 @@ export async function handleDelZorp(interaction: ChatInputCommandInteraction): P
   const ingameName = interaction.options.getString("ingame_name", true);
 
   if (server.rcon_host) {
-    await rconManager.sendCommand(server.id, server.rcon_host, server.rcon_port!, server.rcon_password!,
+    await rconManager.sendFireAndForget(server.id, server.rcon_host, server.rcon_port!, server.rcon_password!,
       `o.zorp delete ${ingameName}`).catch(() => null);
   }
   await db.deleteZorpZone(server.id, ingameName);

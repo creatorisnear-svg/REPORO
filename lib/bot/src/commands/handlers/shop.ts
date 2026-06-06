@@ -498,13 +498,13 @@ async function completePurchase(interaction: ButtonInteraction, serverId: number
   for (const { product, qty } of items) {
     try {
       if (isKit(product.shortname)) {
-        await rconManager.sendCommand(
+        await rconManager.sendFireAndForget(
           server.id, server.rcon_host, server.rcon_port!, server.rcon_password!,
           `giveto ${ingameName} ${kitName(product.shortname)}`
         );
       } else {
         for (let i = 0; i < qty; i++) {
-          await rconManager.sendCommand(
+          await rconManager.sendFireAndForget(
             server.id, server.rcon_host, server.rcon_port!, server.rcon_password!,
             `inventory.give "${ingameName}" "${product.shortname}" 1`
           );

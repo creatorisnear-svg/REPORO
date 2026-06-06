@@ -56,7 +56,7 @@ export async function runPrisonKeepCheck(client: Client): Promise<void> {
       const pos = prisonPos[0];
 
       for (const prisoner of prisoners) {
-        await rconManager.sendCommand(
+        await rconManager.sendFireAndForget(
           server.id, server.rcon_host, server.rcon_port!, server.rcon_password!,
           `teleportpos ${prisoner.ingame_name} ${pos.x} ${pos.y} ${pos.z}`
         ).catch(() => null);

@@ -55,6 +55,12 @@ export async function handleInteractionCreate(interaction: Interaction): Promise
   try {
     await cmd.execute(interaction);
   } catch (err) {
+    // 10062 = Unknown Interaction: the 3-second Discord window expired before the bot could respond.
+    // This can happen on cold starts or heavy load. Nothing we can do at this point — just log quietly.
+    if ((err as { code?: number })?.code === 10062) {
+      console.warn(`[Bot] /${interaction.commandName} interaction expired (10062) — skipping`);
+      return;
+    }
     console.error(`[Bot] Command /${interaction.commandName} error:`, err);
     const msg = { content: "An error occurred while executing this command.", flags: MessageFlags.Ephemeral };
     if (interaction.replied || interaction.deferred) {

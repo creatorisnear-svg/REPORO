@@ -26,9 +26,7 @@ export async function handleAddToList(interaction: ChatInputCommandInteraction):
     };
     const cmd = listRconCmds[listName] ?? (listName.startsWith("elitelist") ? `addto ${listName} ${ingameName}` : null);
     if (cmd) {
-      try {
-        await rconManager.sendCommand(server.id, server.rcon_host, server.rcon_port!, server.rcon_password!, cmd);
-      } catch { /* ignore if not connected */ }
+      await rconManager.sendFireAndForget(server.id, server.rcon_host, server.rcon_port!, server.rcon_password!, cmd).catch(() => null);
     }
   }
 
@@ -46,9 +44,7 @@ export async function handleRemoveFromList(interaction: ChatInputCommandInteract
   await db.removeFromList(server.id, listName, ingameName);
 
   if (server.rcon_host) {
-    try {
-      await rconManager.sendCommand(server.id, server.rcon_host, server.rcon_port!, server.rcon_password!, `removefrom ${listName} ${ingameName}`);
-    } catch { /* ignore */ }
+    await rconManager.sendFireAndForget(server.id, server.rcon_host, server.rcon_port!, server.rcon_password!, `removefrom ${listName} ${ingameName}`).catch(() => null);
   }
 
   await interaction.reply({ content: `Removed **${ingameName}** from **${listName}** on Server ${server.server_number}.`, flags: MessageFlags.Ephemeral });

@@ -83,6 +83,22 @@ export function randomInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
+// Synchronous role check that doesn't call interaction.reply().
+// Use this when you've already called deferReply and need to check permissions afterward.
+export function hasRole(
+  interaction: ChatInputCommandInteraction,
+  roleName: "avivadmin" | "avivmod"
+): boolean {
+  if (!interaction.guild || !interaction.member) return false;
+  const roles = interaction.guild.roles.cache;
+  const adminRole = roles.find(r => r.name === "avivadmin");
+  const targetRole = roles.find(r => r.name === roleName);
+  const memberRoles = (interaction.member as { roles: { cache: Map<string, unknown> } }).roles.cache;
+  const hasAdmin = adminRole ? memberRoles.has(adminRole.id) : false;
+  const hasTarget = targetRole ? memberRoles.has(targetRole.id) : false;
+  return hasAdmin || hasTarget;
+}
+
 // Shared autocomplete handler for the "server" option across all commands
 export async function autocompleteServer(interaction: AutocompleteInteraction): Promise<void> {
   if (!interaction.guild) { await interaction.respond([]); return; }

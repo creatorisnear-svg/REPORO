@@ -19,7 +19,7 @@ export async function handlePrison(interaction: ChatInputCommandInteraction): Pr
   const positions = await db.getTpPositions(server.id, "prison");
   if (positions.length > 0 && server.rcon_host) {
     const pos = positions[0];
-    await rconManager.sendCommand(server.id, server.rcon_host, server.rcon_port!, server.rcon_password!,
+    await rconManager.sendFireAndForget(server.id, server.rcon_host, server.rcon_port!, server.rcon_password!,
       `teleportpos ${ingameName} ${pos.x} ${pos.y} ${pos.z}`).catch(() => null);
   }
 

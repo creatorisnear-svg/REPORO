@@ -36,7 +36,7 @@ async function checkPrisonReleases(client: Client): Promise<void> {
         const positions = await db.getTpPositions(server.id, "prison_release").catch(() => [] as db.TpPositionRow[]);
         if (positions.length > 0 && server.rcon_host) {
           const pos = positions[0];
-          await rconManager.sendCommand(
+          await rconManager.sendFireAndForget(
             server.id, server.rcon_host, server.rcon_port!, server.rcon_password!,
             `teleportpos ${prisoner.ingame_name} ${pos.x} ${pos.y} ${pos.z}`
           ).catch(() => null);
