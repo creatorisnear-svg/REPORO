@@ -71,16 +71,21 @@ export async function handleDaily(interaction: ChatInputCommandInteraction): Pro
   if (economy.last_daily) {
     const last = new Date(economy.last_daily).getTime();
     const cooldown = 20 * 60 * 60 * 1000; // 20 hours
-    if (Date.now() - last < cooldown) {
-      const remaining = Math.ceil((cooldown - (Date.now() - last)) / 3600000);
-      await interaction.editReply({ content: `Daily already claimed. Try again in ~${remaining}h.` });
+    const remainingMs = cooldown - (Date.now() - last);
+    if (remainingMs > 0) {
+      const h = Math.floor(remainingMs / 3600_000);
+      const m = Math.ceil((remainingMs % 3600_000) / 60_000);
+      const timeStr = h > 0 ? `${h}h ${m}m` : `${m}m`;
+      await interaction.editReply({ content: `Daily already claimed. Try again in ${timeStr}.` });
       return;
     }
   }
 
   const minStr = (await db.getConfig(server.id, "daily_min")) ?? "30";
   const maxStr = (await db.getConfig(server.id, "daily_max")) ?? "300";
-  const amount = randomInt(parseInt(minStr, 10), parseInt(maxStr, 10));
+  const rawMin = parseInt(minStr, 10);
+  const rawMax = parseInt(maxStr, 10);
+  const amount = randomInt(Math.min(rawMin, rawMax), Math.max(rawMin, rawMax));
 
   await db.updateBalance(server.id, ingameName, amount);
   await db.setLastDaily(server.id, ingameName);
@@ -99,6 +104,9 @@ export async function handleTransfer(interaction: ChatInputCommandInteraction): 
 
   const targetUser = interaction.options.getUser("player", true);
   const amount = interaction.options.getInteger("amount", true);
+
+  if (amount < 1) { await interaction.editReply({ content: "Amount must be at least 1." }); return; }
+  if (targetUser.id === interaction.user.id) { await interaction.editReply({ content: "You cannot transfer to yourself." }); return; }
 
   const targetPlayer = await db.getPlayerByDiscord(server.id, targetUser.id);
   if (!targetPlayer) { await interaction.editReply({ content: `<@${targetUser.id}> is not linked on this server.` }); return; }
@@ -121,6 +129,7 @@ export async function handleSwap(interaction: ChatInputCommandInteraction): Prom
   const fromNum = interaction.options.getInteger("from", true);
   const toNum = interaction.options.getInteger("to", true);
 
+  if (amount < 1) { await interaction.editReply({ content: "Amount must be at least 1." }); return; }
   if (fromNum === toNum) { await interaction.editReply({ content: "Source and destination must be different servers." }); return; }
 
   const fromServer = await db.getServerByGuildAndNumber(interaction.guild.id, fromNum);

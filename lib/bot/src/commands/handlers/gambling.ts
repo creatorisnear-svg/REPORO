@@ -21,6 +21,7 @@ export async function handleSpin(interaction: ChatInputCommandInteraction): Prom
   if (!ingameName) { await interaction.editReply({ content: "You must be linked. Use /link." }); return; }
 
   const bet = interaction.options.getInteger("bet", true);
+  if (bet < 1) { await interaction.editReply({ content: "Bet must be at least 1." }); return; }
   const maxBet = await getMaxBet(server.id);
   if (bet > maxBet) { await interaction.editReply({ content: `Max bet is ${maxBet}.` }); return; }
 
@@ -61,6 +62,7 @@ export async function handleCoinflip(interaction: ChatInputCommandInteraction): 
 
   const bet = interaction.options.getInteger("bet", true);
   const choice = interaction.options.getString("choice", true);
+  if (bet < 1) { await interaction.editReply({ content: "Bet must be at least 1." }); return; }
   const maxBet = await getMaxBet(server.id);
   if (bet > maxBet) { await interaction.editReply({ content: `Max bet is ${maxBet}.` }); return; }
 
@@ -90,21 +92,36 @@ export async function handleBlackjack(interaction: ChatInputCommandInteraction):
   if (!ingameName) { await interaction.editReply({ content: "You must be linked. Use /link." }); return; }
 
   const bet = interaction.options.getInteger("bet", true);
+  if (bet < 1) { await interaction.editReply({ content: "Bet must be at least 1." }); return; }
   const maxBet = await getMaxBet(server.id);
   if (bet > maxBet) { await interaction.editReply({ content: `Max bet is ${maxBet}.` }); return; }
 
   const eco = await db.getEconomy(server.id, ingameName);
   if ((eco?.balance ?? 0) < bet) { await interaction.editReply({ content: "Insufficient balance." }); return; }
 
-  const cardValue = () => {
-    const v = randomInt(1, 13);
-    return v >= 10 ? 10 : v === 1 ? 11 : v;
+  // Draw a card: face cards = 10, ace = 11 (soft — reduced to 1 if bust)
+  const drawCard = () => { const v = randomInt(1, 13); return v >= 10 ? 10 : v; };
+
+  // Compute hand total with soft-ace rule
+  const handTotal = (cards: number[]): number => {
+    let total = 0;
+    let aces = 0;
+    for (const c of cards) {
+      if (c === 1) { aces++; total += 11; }
+      else { total += c; }
+    }
+    while (total > 21 && aces > 0) { total -= 10; aces--; }
+    return total;
   };
 
-  const playerHand = [cardValue(), cardValue()];
-  const dealerHand = [cardValue(), cardValue()];
-  const playerTotal = playerHand.reduce((a, b) => a + b, 0);
-  const dealerTotal = dealerHand.reduce((a, b) => a + b, 0);
+  const playerHand = [drawCard(), drawCard()];
+  const dealerHand = [drawCard(), drawCard()];
+
+  // Dealer hits until 17
+  while (handTotal(dealerHand) < 17) dealerHand.push(drawCard());
+
+  const playerTotal = handTotal(playerHand);
+  const dealerTotal = handTotal(dealerHand);
 
   // Simplified: just compare totals (no hit/stand)
   let result: "win" | "lose" | "push";

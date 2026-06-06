@@ -11,7 +11,9 @@ import { handleShopInteraction, handleShopModalSubmit } from "../commands/handle
 import { autocompleteServer } from "../commands/handlers/utils.js";
 
 function isShopInteraction(customId: string): boolean {
-  return customId === "shop:srv" || customId.startsWith("shop:g");
+  return customId === "shop:srv"
+    || customId.startsWith("shop:g")
+    || customId.startsWith("shop:claim:");
 }
 
 export async function handleInteractionCreate(interaction: Interaction): Promise<void> {
