@@ -30,78 +30,100 @@ async function removeLinkedState(
 
 export async function handleLink(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!interaction.guild) return;
-  const server = await getServerForInteraction(interaction);
-  if (!server) return;
-
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const ingameName = interaction.options.getString("ingame_name", true).trim();
-  const existing = await db.getPlayerByDiscord(server.id, interaction.user.id);
-  if (existing) {
-    await interaction.editReply({ content: `You are already linked as **${existing.ingame_name}**. Use /unlink first.` });
+  const servers = await db.getServersByGuild(interaction.guild.id);
+
+  if (servers.length === 0) {
+    await interaction.editReply({ content: "No servers configured. Use /add-server first." });
     return;
   }
 
-  const existingName = await db.getPlayerByIngameName(server.id, ingameName);
-  if (existingName) {
-    await interaction.editReply({ content: `**${ingameName}** is already linked to another Discord account.` });
-    return;
+  // Check if already linked on any server
+  for (const server of servers) {
+    const existing = await db.getPlayerByDiscord(server.id, interaction.user.id);
+    if (existing) {
+      await interaction.editReply({
+        content: `You are already linked as **${existing.ingame_name}** on Server ${server.server_number}. Use /unlink first.`,
+      });
+      return;
+    }
   }
 
-  await db.linkPlayer(server.id, interaction.user.id, ingameName);
-  await db.ensureEconomy(server.id, ingameName);
+  // Check if ingame name is taken on any server
+  for (const server of servers) {
+    const existingName = await db.getPlayerByIngameName(server.id, ingameName);
+    if (existingName) {
+      await interaction.editReply({ content: `**${ingameName}** is already linked to another Discord account.` });
+      return;
+    }
+  }
+
+  // Link to all servers at once
+  for (const server of servers) {
+    await db.linkPlayer(server.id, interaction.user.id, ingameName);
+    await db.ensureEconomy(server.id, ingameName);
+  }
+
   await applyLinkedState(interaction.guild, interaction.user.id, ingameName);
 
+  const serverList = servers.map(s => `Server ${s.server_number}: ${s.server_label}`).join("\n");
   await interaction.editReply({
-    content: `Linked! Your Discord is now connected to **${ingameName}** on Server ${server.server_number}.\nYour nickname and "avivlinked" role have been updated.`,
+    content: `Linked! Your Discord is now connected to **${ingameName}** across all servers:\n${serverList}\n\nYour nickname and "avivlinked" role have been updated.`,
   });
 }
 
 export async function handleUnlink(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!interaction.guild) return;
-  const server = await getServerForInteraction(interaction);
-  if (!server) return;
-
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-  const player = await db.getPlayerByDiscord(server.id, interaction.user.id);
-  if (!player) {
-    await interaction.editReply({ content: "You are not linked on this server." });
+  const servers = await db.getServersByGuild(interaction.guild.id);
+  let unlinkedAny = false;
+  let ingameName = "";
+
+  for (const server of servers) {
+    const player = await db.getPlayerByDiscord(server.id, interaction.user.id);
+    if (player) {
+      ingameName = player.ingame_name;
+      await db.unlinkPlayer(server.id, interaction.user.id);
+      unlinkedAny = true;
+    }
+  }
+
+  if (!unlinkedAny) {
+    await interaction.editReply({ content: "You are not linked on any server." });
     return;
   }
 
-  await db.unlinkPlayer(server.id, interaction.user.id);
-
-  // Only remove role/nickname if not linked to any other server in this guild
-  const otherServers = await db.getServersByGuild(interaction.guild.id);
-  const stillLinked = (await Promise.all(
-    otherServers.filter(s => s.id !== server.id).map(s => db.getPlayerByDiscord(s.id, interaction.user.id))
-  )).some(Boolean);
-
-  if (!stillLinked) {
-    await removeLinkedState(interaction.guild, interaction.user.id);
-  }
-
-  await interaction.editReply({ content: `Unlinked **${player.ingame_name}** from your Discord on Server ${server.server_number}.` });
+  await removeLinkedState(interaction.guild, interaction.user.id);
+  await interaction.editReply({ content: `Unlinked **${ingameName}** from your Discord across all servers.` });
 }
 
 export async function handleAdminLink(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!await requireRole(interaction, "avivadmin")) return;
   if (!interaction.guild) return;
-  const server = await getServerForInteraction(interaction);
-  if (!server) return;
-
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const ingameName = interaction.options.getString("ingame_name", true).trim();
   const targetUser = interaction.options.getUser("discord_user", true);
 
-  await db.linkPlayer(server.id, targetUser.id, ingameName);
-  await db.ensureEconomy(server.id, ingameName);
+  const servers = await db.getServersByGuild(interaction.guild.id);
+  if (servers.length === 0) {
+    await interaction.editReply({ content: "No servers configured." });
+    return;
+  }
+
+  for (const server of servers) {
+    await db.linkPlayer(server.id, targetUser.id, ingameName);
+    await db.ensureEconomy(server.id, ingameName);
+  }
+
   await applyLinkedState(interaction.guild, targetUser.id, ingameName);
 
+  const serverList = servers.map(s => `Server ${s.server_number}: ${s.server_label}`).join("\n");
   await interaction.editReply({
-    content: `Linked <@${targetUser.id}> to **${ingameName}** on Server ${server.server_number}. Nickname and role updated.`,
+    content: `Linked <@${targetUser.id}> to **${ingameName}** across all servers:\n${serverList}\n\nNickname and role updated.`,
   });
 }
 

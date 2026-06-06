@@ -47,7 +47,7 @@ export const ALL_CONFIG_KEYS = [
 import { handleSetup, handleAddServer, handleRemoveServer, handleDiag, handleAviv } from "./handlers/setup.js";
 import { handleLink, handleUnlink, handleAdminLink, handleWhois, handleSyncMe, handleSyncTarget, handleGetPlayerinfo } from "./handlers/linking.js";
 import { handleAddToList, handleRemoveFromList, handleGetList } from "./handlers/lists.js";
-import { handleGivekit, autocompleteGivekit } from "./handlers/kits.js";
+import { handleGivekit, handleRefreshKits, autocompleteGivekit } from "./handlers/kits.js";
 import { handleBalance, handleDaily, handleTransfer, handleSwap, handleLeaderboard, handleSetdailyscale, handleKillpoints, handleAddPointsPlayer, handleSubPointsPlayer, handleAddPointsServer, handleSubPointsServer, handleWipeEconomy } from "./handlers/economy.js";
 import { handleSpin, handleCoinflip, handleBlackjack, handleMaxbet } from "./handlers/gambling.js";
 import { handleShop, handleAdminShopCreateShop, handleAdminShopDeleteShop, handleAdminShopAddCategory, handleAdminShopAddSubcategory, handleAdminShopAddItem, handleAdminShopAddKit, handleAdminShopEditProduct, handleAdminShopRemoveProduct, handleDelayshop, handleOpenshop, autocompleteShopAdmin } from "./handlers/shop.js";
@@ -147,12 +147,12 @@ export const commands: Command[] = [
   },
   // Linking
   {
-    data: serverOption(new SlashCommandBuilder().setName("link").setDescription("Link your Discord account to your in-game name")
-      .addStringOption(o => o.setName("ingame_name").setDescription("Your Rust in-game name").setRequired(true)) as SlashCommandBuilder),
+    data: new SlashCommandBuilder().setName("link").setDescription("Link your Discord account to your in-game name across all servers")
+      .addStringOption(o => o.setName("ingame_name").setDescription("Your Rust in-game name").setRequired(true)) as SlashCommandBuilder,
     execute: handleLink,
   },
   {
-    data: serverOption(new SlashCommandBuilder().setName("unlink").setDescription("Remove your Discord-to-game link") as SlashCommandBuilder),
+    data: new SlashCommandBuilder().setName("unlink").setDescription("Remove your Discord-to-game link from all servers"),
     execute: handleUnlink,
   },
   {
@@ -206,6 +206,10 @@ export const commands: Command[] = [
       .addStringOption(o => o.setName("kit_name").setDescription("Kit name — search as you type").setRequired(true).setAutocomplete(true)) as SlashCommandBuilder),
     execute: handleGivekit,
     autocomplete: autocompleteGivekit,
+  },
+  {
+    data: serverOption(new SlashCommandBuilder().setName("refresh-kits").setDescription("Sync kit list from RCON server into autocomplete (admin)") as SlashCommandBuilder),
+    execute: handleRefreshKits,
   },
   // Economy
   {
