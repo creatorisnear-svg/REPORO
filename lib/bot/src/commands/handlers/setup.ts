@@ -95,12 +95,19 @@ export async function handleAddServer(interaction: ChatInputCommandInteraction):
 
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-  const host = interaction.options.getString("host", true);
+  let host = interaction.options.getString("host", true).trim();
   const port = interaction.options.getInteger("port", true);
   const password = interaction.options.getString("password", true);
   const serverNum = interaction.options.getInteger("server") ?? 1;
   const label = interaction.options.getString("label") ?? `Server ${serverNum}`;
   const guildId = interaction.guild.id;
+
+  // If the user accidentally typed "ip:port" in the host field, strip the port part
+  const hostPortMatch = host.match(/^(.+):(\d+)$/);
+  if (hostPortMatch) {
+    host = hostPortMatch[1]!;
+    console.warn(`[AddServer] Host contained port (${hostPortMatch[2]}) — stripped. Using host: ${host}, port: ${port}`);
+  }
 
   // Check subscription server limit (skipped when BYPASS_SUB=true)
   const existingServers = await db.getServersByGuild(guildId);

@@ -25,7 +25,7 @@ export function startBot(): void {
     partials: [Partials.Channel, Partials.Message],
   });
 
-  client.once("ready", (c) => {
+  client.once("clientReady", (c) => {
     initParser(c);
     handleReady(c).catch(err => console.error("[Bot] ready error:", err));
   });
