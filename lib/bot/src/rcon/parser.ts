@@ -515,6 +515,16 @@ async function handleBountyKill(serverId: number, killer: string, victim: string
 async function handleJoin(serverId: number, playerName: string): Promise<void> {
   await postToChannel(serverId, "player-feed", `\u{1F7E2} **${playerName}** joined the server`);
 
+  // Update ZORP zone status to green immediately on join
+  const zorpZone = await db.getZorpZone(serverId, playerName).catch(() => null);
+  if (zorpZone) {
+    const now = new Date().toISOString();
+    await db.updateZorpLastSeen(serverId, playerName, now).catch(() => null);
+    if (zorpZone.status !== "green") {
+      await db.updateZorpStatus(serverId, playerName, "green").catch(() => null);
+    }
+  }
+
   const isPris = await db.isPrisoner(serverId, playerName);
   if (isPris) {
     const server = await getServerInfo(serverId);
@@ -532,6 +542,16 @@ async function handleJoin(serverId: number, playerName: string): Promise<void> {
 
 async function handleLeave(serverId: number, playerName: string): Promise<void> {
   await postToChannel(serverId, "player-feed", `\u{1F534} **${playerName}** left the server`);
+
+  // Update ZORP last_seen_at on leave so the offline timer starts from now, not from the last poll
+  const zorpZone = await db.getZorpZone(serverId, playerName).catch(() => null);
+  if (zorpZone) {
+    const now = new Date().toISOString();
+    await db.updateZorpLastSeen(serverId, playerName, now).catch(() => null);
+    if (zorpZone.status === "green") {
+      await db.updateZorpStatus(serverId, playerName, "yellow").catch(() => null);
+    }
+  }
 }
 
 async function handleRaidAlert(serverId: number, frequency: string): Promise<void> {
