@@ -150,7 +150,7 @@ export async function handleAddServer(interaction: ChatInputCommandInteraction):
 
   // Reply with success immediately - RCON connection happens in background
   await interaction.editReply({
-    content: `Server **${serverNum}** (${label}) added! ID: ${serverId}\nAttempting RCON connection in the background. Use \`/diag\` to check connection status.`,
+    content: `Server **${serverNum}** (${label}) added!\nAttempting RCON connection in the background. Use \`/diag\` to check connection status.`,
   });
 
   // Fire-and-forget RCON test so it does not block or confuse the response
