@@ -20,15 +20,25 @@ export async function handleGivekit(interaction: ChatInputCommandInteraction): P
   }
 
   try {
-    await rconManager.sendFireAndForget(server.id, server.rcon_host, server.rcon_port!, server.rcon_password!, `kit givetoplayer "${kitName}" "${ingameName}"`);
+    const response = await rconManager.sendCommand(server.id, server.rcon_host, server.rcon_port!, server.rcon_password!, `kit givetoplayer "${kitName}" "${ingameName}"`);
+
+    // RCE returns something like "Gave kit X to Y" on success, or an error message
+    const succeeded = /gave|success|given|kit/i.test(response) && !/error|fail|not found|invalid|couldn't|no player/i.test(response);
+
     const logsChannelId = await db.getChannel(server.id, "cmd-logs");
     if (logsChannelId && interaction.guild) {
       const ch = interaction.guild.channels.cache.get(logsChannelId);
       if (ch && ch.isTextBased()) {
-        await ch.send(`[CMD] ${interaction.user.tag} used /givekit: **${ingameName}** got **${kitName}** on Server ${server.server_number}`);
+        const status = succeeded ? "SUCCESS" : "FAILED";
+        await ch.send(`[CMD] ${interaction.user.tag} used /givekit: **${ingameName}** / kit **${kitName}** on Server ${server.server_number} — ${status}\nRCON: \`${response.slice(0, 300)}\``);
       }
     }
-    await interaction.editReply({ content: `Gave kit **${kitName}** to **${ingameName}** on Server ${server.server_number}.` });
+
+    if (succeeded) {
+      await interaction.editReply({ content: `Kit **${kitName}** was given to **${ingameName}** on Server ${server.server_number}.` });
+    } else {
+      await interaction.editReply({ content: `Kit command sent but the server reported an issue:\n\`\`\`\n${response.slice(0, 500)}\n\`\`\`\nDouble-check the player name and kit name.` });
+    }
   } catch (err) {
     await interaction.editReply({ content: `Failed to send RCON command: ${String(err)}` });
   }

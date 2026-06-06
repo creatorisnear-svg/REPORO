@@ -159,6 +159,10 @@ const killAntiAbuseMap = new Map<string, number>();
 const SCIENTIST_RE = /scientist/i;
 const NPC_RE = /scientist|dweller|bear|wolf|boar|stag|chicken|horse|zombie|bradley|helicopter|patrol|npc/i;
 
+// Environmental / world-kill detection
+const WORLD_KILLER_RE = /^(world|fall|environment|hunger|thirst|radiation|cold|hot|bleeding|suicide|drowned?|trap)$/i;
+const ENV_WEAPON_RE = /fall|drown|bleed|radiation|cold|heat|hunger|thirst|trap|suicide/i;
+
 function isNpc(name: string): boolean { return NPC_RE.test(name); }
 function isScientistName(name: string): boolean { return SCIENTIST_RE.test(name); }
 
@@ -194,8 +198,10 @@ const STREAK_LABELS: Record<number, string> = {
 };
 
 async function handleKill(serverId: number, killer: string, victim: string, weapon: string): Promise<void> {
-  const isSuicide = killer === victim;
-  const killerIsNpc = isNpc(killer);
+  // Treat environmental deaths as suicides: fall damage, world kills, etc.
+  const isEnvDeath = killer === victim || WORLD_KILLER_RE.test(killer) || (killer === "" && ENV_WEAPON_RE.test(weapon));
+  const isSuicide = isEnvDeath;
+  const killerIsNpc = !isEnvDeath && isNpc(killer);
   const victimIsNpc = isNpc(victim);
   const killerIsScientist = isScientistName(killer);
   const victimIsScientist = isScientistName(victim);
