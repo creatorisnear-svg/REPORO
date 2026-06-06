@@ -14,6 +14,20 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 app.use(
   pinoHttp({
     logger,
+    // Suppress health check pings from access logs - they fire every 15s and add noise
+    customSuccessMessage(req, res) {
+      const url = req.url?.split("?")[0] ?? "";
+      if (url === "/health" || url === "/healthz" || url === "/api/healthz") {
+        return "";
+      }
+      return `${req.method} ${url} ${res.statusCode}`;
+    },
+    autoLogging: {
+      ignore(req) {
+        const url = req.url?.split("?")[0] ?? "";
+        return url === "/health" || url === "/healthz" || url === "/api/healthz";
+      },
+    },
     serializers: {
       req(req) {
         return { id: req.id, method: req.method, url: req.url?.split("?")[0] };
@@ -57,6 +71,15 @@ app.get("/setup-wizard", (_req, res) => res.sendFile(path.join(publicDir, "setup
 app.get("/dashboard", (_req, res) => res.sendFile(path.join(publicDir, "dashboard.html")));
 app.get("/privacy", (_req, res) => res.sendFile(path.join(publicDir, "privacy.html")));
 app.get("/terms", (_req, res) => res.sendFile(path.join(publicDir, "terms.html")));
+
+// Top-level health endpoints so Koyeb and uptime monitors can reach them
+// without the /api prefix
+app.get("/health", (_req, res) => {
+  res.json({ status: "ok" });
+});
+app.get("/healthz", (_req, res) => {
+  res.json({ status: "ok" });
+});
 
 app.use("/auth", authRouter);
 app.use("/api", router);

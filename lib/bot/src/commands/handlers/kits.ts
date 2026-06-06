@@ -1,4 +1,5 @@
 import type { ChatInputCommandInteraction } from "discord.js";
+import { MessageFlags } from "discord.js";
 import * as db from "@workspace/db";
 import { getServerForInteraction, requireRole } from "./utils.js";
 import { rconManager } from "../../rcon/manager.js";
@@ -8,7 +9,7 @@ export async function handleGivekit(interaction: ChatInputCommandInteraction): P
   const server = await getServerForInteraction(interaction);
   if (!server) return;
 
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const ingameName = interaction.options.getString("ingame_name", true).trim();
   const kitName = interaction.options.getString("kit_name", true).trim();

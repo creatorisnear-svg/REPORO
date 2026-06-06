@@ -1,4 +1,5 @@
 import type { ChatInputCommandInteraction, AutocompleteInteraction } from "discord.js";
+import { MessageFlags } from "discord.js";
 import * as db from "@workspace/db";
 
 export async function requireRole(
@@ -7,13 +8,13 @@ export async function requireRole(
 ): Promise<boolean> {
   const member = interaction.member;
   if (!member || !interaction.guild) {
-    await interaction.reply({ content: "This command must be used in a server.", ephemeral: true });
+    await interaction.reply({ content: "This command must be used in a server.", flags: MessageFlags.Ephemeral });
     return false;
   }
   const roles = interaction.guild.roles.cache;
   const role = roles.find(r => r.name === roleName);
   if (!role) {
-    await interaction.reply({ content: `Role "${roleName}" not found. Run /setup first.`, ephemeral: true });
+    await interaction.reply({ content: `Role "${roleName}" not found. Run /setup first.`, flags: MessageFlags.Ephemeral });
     return false;
   }
   const memberRoles = (member as { roles: { cache: Map<string, unknown> } }).roles.cache;
@@ -21,7 +22,7 @@ export async function requireRole(
   const hasAdmin = adminRole ? memberRoles.has(adminRole.id) : false;
   const hasMod = role ? memberRoles.has(role.id) : false;
   if (!hasAdmin && !hasMod) {
-    await interaction.reply({ content: `You need the **${roleName}** role to use this command.`, ephemeral: true });
+    await interaction.reply({ content: `You need the **${roleName}** role to use this command.`, flags: MessageFlags.Ephemeral });
     return false;
   }
   return true;
@@ -33,7 +34,7 @@ export async function requireAdmin(interaction: ChatInputCommandInteraction): Pr
 
 export async function getServerForInteraction(interaction: ChatInputCommandInteraction): Promise<db.ServerRow | null> {
   if (!interaction.guild) {
-    await interaction.reply({ content: "Must be used in a server.", ephemeral: true });
+    await interaction.reply({ content: "Must be used in a server.", flags: MessageFlags.Ephemeral });
     return null;
   }
   const serverNum = interaction.options.getInteger("server");
@@ -42,7 +43,7 @@ export async function getServerForInteraction(interaction: ChatInputCommandInter
     // No server specified - check how many are configured
     const all = await db.getServersByGuild(interaction.guild.id);
     if (all.length === 0) {
-      await interaction.reply({ content: "No servers configured. Use /add-server first.", ephemeral: true });
+      await interaction.reply({ content: "No servers configured. Use /add-server first.", flags: MessageFlags.Ephemeral });
       return null;
     }
     if (all.length === 1) {
@@ -52,7 +53,7 @@ export async function getServerForInteraction(interaction: ChatInputCommandInter
     const list = all.map(s => `**${s.server_number}** — ${s.server_label}`).join("\n");
     await interaction.reply({
       content: `Multiple servers are configured. Please specify which one with the \`server\` option:\n\n${list}\n\nExample: \`/balance server:1\``,
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return null;
   }
@@ -63,7 +64,7 @@ export async function getServerForInteraction(interaction: ChatInputCommandInter
     const hint = all.length > 0
       ? "\n\nAvailable servers:\n" + all.map(s => `**${s.server_number}** — ${s.server_label}`).join("\n")
       : "";
-    await interaction.reply({ content: `Server ${serverNum} not configured.${hint}`, ephemeral: true });
+    await interaction.reply({ content: `Server ${serverNum} not configured.${hint}`, flags: MessageFlags.Ephemeral });
     return null;
   }
   return server;

@@ -1,5 +1,5 @@
 import type { ChatInputCommandInteraction } from "discord.js";
-import { EmbedBuilder } from "discord.js";
+import { EmbedBuilder, MessageFlags } from "discord.js";
 import * as db from "@workspace/db";
 import { getServerForInteraction, requireRole } from "./utils.js";
 import { rconManager } from "../../rcon/manager.js";
@@ -8,7 +8,7 @@ export async function handlePrison(interaction: ChatInputCommandInteraction): Pr
   if (!await requireRole(interaction, "avivmod")) return;
   const server = await getServerForInteraction(interaction);
   if (!server) return;
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const ingameName = interaction.options.getString("ingame_name", true);
   const duration = interaction.options.getInteger("duration", true);
@@ -61,14 +61,14 @@ export async function handleUnprison(interaction: ChatInputCommandInteraction): 
     }
   }
 
-  await interaction.reply({ content: `**${ingameName}** released from prison.`, ephemeral: true });
+  await interaction.reply({ content: `**${ingameName}** released from prison.`, flags: MessageFlags.Ephemeral });
 }
 
 export async function handlePrisonList(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!await requireRole(interaction, "avivmod")) return;
   const server = await getServerForInteraction(interaction);
   if (!server) return;
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const prisoners = await db.getActivePrisoners(server.id);
   if (prisoners.length === 0) {

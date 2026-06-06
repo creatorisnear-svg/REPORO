@@ -1,5 +1,5 @@
 import type { ChatInputCommandInteraction } from "discord.js";
-import { EmbedBuilder } from "discord.js";
+import { EmbedBuilder, MessageFlags } from "discord.js";
 import * as db from "@workspace/db";
 import { getServerForInteraction, requireRole, getLinkedName, formatCurrency, randomInt } from "./utils.js";
 
@@ -10,7 +10,7 @@ async function getCurrencyName(serverId: number): Promise<string> {
 export async function handleBalance(interaction: ChatInputCommandInteraction): Promise<void> {
   const server = await getServerForInteraction(interaction);
   if (!server) return;
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   let ingameName = interaction.options.getString("ingame_name");
   if (!ingameName) {
@@ -31,7 +31,7 @@ export async function handleBalance(interaction: ChatInputCommandInteraction): P
 export async function handleDaily(interaction: ChatInputCommandInteraction): Promise<void> {
   const server = await getServerForInteraction(interaction);
   if (!server) return;
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const ingameName = await getLinkedName(interaction, server.id);
   if (!ingameName) { await interaction.editReply({ content: "You must be linked to claim daily. Use /link." }); return; }
@@ -61,7 +61,7 @@ export async function handleDaily(interaction: ChatInputCommandInteraction): Pro
 export async function handleTransfer(interaction: ChatInputCommandInteraction): Promise<void> {
   const server = await getServerForInteraction(interaction);
   if (!server) return;
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const ingameName = await getLinkedName(interaction, server.id);
   if (!ingameName) { await interaction.editReply({ content: "You must be linked. Use /link." }); return; }
@@ -84,7 +84,7 @@ export async function handleTransfer(interaction: ChatInputCommandInteraction): 
 
 export async function handleSwap(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!interaction.guild) return;
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const amount = interaction.options.getInteger("amount", true);
   const fromNum = interaction.options.getInteger("from", true);
@@ -135,10 +135,10 @@ export async function handleSetdailyscale(interaction: ChatInputCommandInteracti
   if (!server) return;
   const min = interaction.options.getInteger("min", true);
   const max = interaction.options.getInteger("max", true);
-  if (min > max) { await interaction.reply({ content: "Min must be less than or equal to max.", ephemeral: true }); return; }
+  if (min > max) { await interaction.reply({ content: "Min must be less than or equal to max.", flags: MessageFlags.Ephemeral }); return; }
   await db.setConfig(server.id, "daily_min", String(min));
   await db.setConfig(server.id, "daily_max", String(max));
-  await interaction.reply({ content: `Daily reward range set to ${min}-${max} on Server ${server.server_number}.`, ephemeral: true });
+  await interaction.reply({ content: `Daily reward range set to ${min}-${max} on Server ${server.server_number}.`, flags: MessageFlags.Ephemeral });
 }
 
 export async function handleKillpoints(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -149,7 +149,7 @@ export async function handleKillpoints(interaction: ChatInputCommandInteraction)
   const amount = interaction.options.getInteger("amount", true);
   const key = type === "player" ? "player_kill_points" : "scientist_kill_points";
   await db.setConfig(server.id, key, String(amount));
-  await interaction.reply({ content: `Set ${type} kill points to ${amount} on Server ${server.server_number}.`, ephemeral: true });
+  await interaction.reply({ content: `Set ${type} kill points to ${amount} on Server ${server.server_number}.`, flags: MessageFlags.Ephemeral });
 }
 
 export async function handleAddPointsPlayer(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -161,7 +161,7 @@ export async function handleAddPointsPlayer(interaction: ChatInputCommandInterac
   await db.ensureEconomy(server.id, ingameName);
   await db.updateBalance(server.id, ingameName, amount);
   const currency = await getCurrencyName(server.id);
-  await interaction.reply({ content: `Added ${formatCurrency(amount, currency)} to **${ingameName}**.`, ephemeral: true });
+  await interaction.reply({ content: `Added ${formatCurrency(amount, currency)} to **${ingameName}**.`, flags: MessageFlags.Ephemeral });
 }
 
 export async function handleSubPointsPlayer(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -172,14 +172,14 @@ export async function handleSubPointsPlayer(interaction: ChatInputCommandInterac
   const amount = interaction.options.getInteger("amount", true);
   await db.updateBalance(server.id, ingameName, -amount);
   const currency = await getCurrencyName(server.id);
-  await interaction.reply({ content: `Removed ${formatCurrency(amount, currency)} from **${ingameName}**.`, ephemeral: true });
+  await interaction.reply({ content: `Removed ${formatCurrency(amount, currency)} from **${ingameName}**.`, flags: MessageFlags.Ephemeral });
 }
 
 export async function handleAddPointsServer(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!await requireRole(interaction, "avivadmin")) return;
   const server = await getServerForInteraction(interaction);
   if (!server) return;
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const amount = interaction.options.getInteger("amount", true);
   const top = await db.getLeaderboard(server.id, 9999);
   for (const e of top) await db.updateBalance(server.id, e.ingame_name, amount);
@@ -191,7 +191,7 @@ export async function handleSubPointsServer(interaction: ChatInputCommandInterac
   if (!await requireRole(interaction, "avivadmin")) return;
   const server = await getServerForInteraction(interaction);
   if (!server) return;
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const amount = interaction.options.getInteger("amount", true);
   const top = await db.getLeaderboard(server.id, 9999);
   for (const e of top) await db.updateBalance(server.id, e.ingame_name, -amount);
@@ -203,7 +203,7 @@ export async function handleWipeEconomy(interaction: ChatInputCommandInteraction
   if (!await requireRole(interaction, "avivadmin")) return;
   const server = await getServerForInteraction(interaction);
   if (!server) return;
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   await db.wipeEconomy(server.id);
 

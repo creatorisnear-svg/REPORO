@@ -1,5 +1,5 @@
 import type { ChatInputCommandInteraction } from "discord.js";
-import { EmbedBuilder } from "discord.js";
+import { EmbedBuilder, MessageFlags } from "discord.js";
 import * as db from "@workspace/db";
 import { getServerForInteraction, requireRole } from "./utils.js";
 
@@ -12,14 +12,14 @@ export async function handleAdminChannels(interaction: ChatInputCommandInteracti
   const channel = interaction.options.getChannel("channel", true);
 
   await db.setChannel(server.id, feedType, channel.id);
-  await interaction.reply({ content: `Set **${feedType}** feed to <#${channel.id}> on Server ${server.server_number}.`, ephemeral: true });
+  await interaction.reply({ content: `Set **${feedType}** feed to <#${channel.id}> on Server ${server.server_number}.`, flags: MessageFlags.Ephemeral });
 }
 
 export async function handleAdminPositions(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!await requireRole(interaction, "avivadmin")) return;
   const server = await getServerForInteraction(interaction);
   if (!server) return;
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const action = interaction.options.getString("action", true);
 
@@ -71,7 +71,7 @@ export async function handleAdminScheduler(interaction: ChatInputCommandInteract
   if (!await requireRole(interaction, "avivadmin")) return;
   const server = await getServerForInteraction(interaction);
   if (!server) return;
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const action = interaction.options.getString("action", true);
 

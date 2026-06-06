@@ -1,5 +1,5 @@
 import type { ChatInputCommandInteraction } from "discord.js";
-import { EmbedBuilder } from "discord.js";
+import { EmbedBuilder, MessageFlags } from "discord.js";
 import * as db from "@workspace/db";
 import { getServerForInteraction, requireRole, getLinkedName, formatCurrency, randomInt } from "./utils.js";
 
@@ -134,5 +134,5 @@ export async function handleMaxbet(interaction: ChatInputCommandInteraction): Pr
   if (!server) return;
   const amount = interaction.options.getInteger("amount", true);
   await db.setConfig(server.id, "maxbet", String(amount));
-  await interaction.reply({ content: `Max bet set to ${amount} on Server ${server.server_number}.`, ephemeral: true });
+  await interaction.reply({ content: `Max bet set to ${amount} on Server ${server.server_number}.`, flags: MessageFlags.Ephemeral });
 }

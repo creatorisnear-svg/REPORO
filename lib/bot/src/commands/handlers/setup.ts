@@ -1,13 +1,13 @@
 import type { ChatInputCommandInteraction, ButtonInteraction } from "discord.js";
-import { PermissionFlagsBits, ChannelType, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
+import { PermissionFlagsBits, ChannelType, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } from "discord.js";
 import * as db from "@workspace/db";
 import { rconManager } from "../../rcon/manager.js";
 import { getServerForInteraction, requireRole } from "./utils.js";
 
 export async function handleSetup(interaction: ChatInputCommandInteraction): Promise<void> {
-  if (!interaction.guild) { await interaction.reply({ content: "Must be used in a server.", ephemeral: true }); return; }
+  if (!interaction.guild) { await interaction.reply({ content: "Must be used in a server.", flags: MessageFlags.Ephemeral }); return; }
   if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
-    await interaction.reply({ content: "You need Administrator permission to run /setup.", ephemeral: true }); return;
+    await interaction.reply({ content: "You need Administrator permission to run /setup.", flags: MessageFlags.Ephemeral }); return;
   }
 
   await interaction.deferReply();
@@ -93,7 +93,7 @@ export async function handleAddServer(interaction: ChatInputCommandInteraction):
   if (!await requireRole(interaction, "avivadmin")) return;
   if (!interaction.guild) return;
 
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const host = interaction.options.getString("host", true);
   const port = interaction.options.getInteger("port", true);
@@ -158,13 +158,13 @@ export async function handleRemoveServer(interaction: ChatInputCommandInteractio
   if (!server) return;
   await db.deactivateServer(server.id);
   rconManager.dropConnection(server.id);
-  await interaction.reply({ content: `Server ${server.server_number} removed.`, ephemeral: true });
+  await interaction.reply({ content: `Server ${server.server_number} removed.`, flags: MessageFlags.Ephemeral });
 }
 
 export async function handleDiag(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!await requireRole(interaction, "avivadmin")) return;
   if (!interaction.guild) return;
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const servers = await db.getServersByGuild(interaction.guild.id);
   if (servers.length === 0) {
@@ -225,7 +225,7 @@ export const CATEGORY_CONFIGS: Record<string, { label: string; keys: string[] }>
 export async function handleAviv(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!await requireRole(interaction, "avivadmin")) return;
   if (!interaction.guild) return;
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const servers = await db.getServersByGuild(interaction.guild.id);
   if (servers.length === 0) {
@@ -267,7 +267,7 @@ export async function handleAvivButton(interaction: ButtonInteraction): Promise<
 
   const catDef = CATEGORY_CONFIGS[category];
   if (!catDef) {
-    await interaction.reply({ content: "Unknown category.", ephemeral: true });
+    await interaction.reply({ content: "Unknown category.", flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -278,7 +278,7 @@ export async function handleAvivButton(interaction: ButtonInteraction): Promise<
     return;
   }
 
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const configs = await Promise.all(
     catDef.keys.map(async key => {

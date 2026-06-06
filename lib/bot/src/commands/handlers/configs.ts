@@ -1,5 +1,5 @@
 import type { ChatInputCommandInteraction, AutocompleteInteraction } from "discord.js";
-import { EmbedBuilder } from "discord.js";
+import { EmbedBuilder, MessageFlags } from "discord.js";
 import * as db from "@workspace/db";
 import { ALL_CONFIG_KEYS } from "../registry.js";
 import { getServerForInteraction, requireRole } from "./utils.js";
@@ -13,12 +13,12 @@ export async function handleSet(interaction: ChatInputCommandInteraction): Promi
   const value = interaction.options.getString("value", true);
 
   if (!ALL_CONFIG_KEYS.includes(key)) {
-    await interaction.reply({ content: `Unknown config key: **${key}**. Use autocomplete to pick a valid key.`, ephemeral: true });
+    await interaction.reply({ content: `Unknown config key: **${key}**. Use autocomplete to pick a valid key.`, flags: MessageFlags.Ephemeral });
     return;
   }
 
   await db.setConfig(server.id, key, value);
-  await interaction.reply({ content: `Set **${key}** = \`${value}\` on Server ${server.server_number}.`, ephemeral: true });
+  await interaction.reply({ content: `Set **${key}** = \`${value}\` on Server ${server.server_number}.`, flags: MessageFlags.Ephemeral });
 }
 
 export async function autocompleteSet(interaction: AutocompleteInteraction): Promise<void> {
@@ -34,7 +34,7 @@ export async function handleConfigs(interaction: ChatInputCommandInteraction): P
   if (!await requireRole(interaction, "avivadmin")) return;
   const server = await getServerForInteraction(interaction);
   if (!server) return;
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const configs = await db.getAllConfigs(server.id);
   if (configs.length === 0) {

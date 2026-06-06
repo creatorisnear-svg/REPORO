@@ -1,12 +1,12 @@
 import type { ChatInputCommandInteraction } from "discord.js";
-import { EmbedBuilder } from "discord.js";
+import { EmbedBuilder, MessageFlags } from "discord.js";
 import * as db from "@workspace/db";
 import { getServerForInteraction, requireRole } from "./utils.js";
 
 export async function handleRaidlink(interaction: ChatInputCommandInteraction): Promise<void> {
   const server = await getServerForInteraction(interaction);
   if (!server) return;
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const ingameName = interaction.options.getString("ingame_name", true).trim();
   const frequency = interaction.options.getString("frequency", true).trim();
@@ -25,7 +25,7 @@ export async function handleListRaidlink(interaction: ChatInputCommandInteractio
   if (!await requireRole(interaction, "avivmod")) return;
   const server = await getServerForInteraction(interaction);
   if (!server) return;
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const links = await db.getAllRaidLinks(server.id);
   if (links.length === 0) {
@@ -46,7 +46,7 @@ export async function handleListRaidalert(interaction: ChatInputCommandInteracti
   if (!await requireRole(interaction, "avivmod")) return;
   const server = await getServerForInteraction(interaction);
   if (!server) return;
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   // Show currently registered raid links as "active alert subscriptions"
   const links = await db.getAllRaidLinks(server.id);
@@ -62,7 +62,7 @@ export async function handleWipeRaidlink(interaction: ChatInputCommandInteractio
   if (!await requireRole(interaction, "avivadmin")) return;
   const server = await getServerForInteraction(interaction);
   if (!server) return;
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   await db.wipeRaidLinks(server.id);
   await interaction.editReply({ content: `All raid frequency registrations wiped for Server ${server.server_number}.` });
@@ -75,5 +75,5 @@ export async function handleDelRaidlink(interaction: ChatInputCommandInteraction
 
   const ingameName = interaction.options.getString("ingame_name", true);
   await db.deleteRaidLink(server.id, ingameName);
-  await interaction.reply({ content: `Removed raid link for **${ingameName}**.`, ephemeral: true });
+  await interaction.reply({ content: `Removed raid link for **${ingameName}**.`, flags: MessageFlags.Ephemeral });
 }

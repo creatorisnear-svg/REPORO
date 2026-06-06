@@ -11,6 +11,7 @@ import {
   StringSelectMenuOptionBuilder,
   ButtonBuilder,
   ButtonStyle,
+  MessageFlags,
 } from "discord.js";
 import * as db from "@workspace/db";
 import { getServerForInteraction, requireRole } from "./utils.js";
@@ -175,9 +176,9 @@ async function buildItemSelect(serverId: number, catId: number, currency: string
 // ---- /shop entry point ----
 
 export async function handleShop(interaction: ChatInputCommandInteraction): Promise<void> {
-  if (!interaction.guild) { await interaction.reply({ content: "Must be used in a server.", ephemeral: true }); return; }
+  if (!interaction.guild) { await interaction.reply({ content: "Must be used in a server.", flags: MessageFlags.Ephemeral }); return; }
 
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   // Check if shop is closed
   const serverNum = interaction.options.getInteger("server");
@@ -557,7 +558,7 @@ async function completePurchase(interaction: ButtonInteraction, serverId: number
 
 export async function handleAdminShopCreateShop(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!await requireRole(interaction, "avivadmin")) return;
-  await interaction.reply({ content: "Shop ready. Use /admin-shop-add-category to create categories.", ephemeral: true });
+  await interaction.reply({ content: "Shop ready. Use /admin-shop-add-category to create categories.", flags: MessageFlags.Ephemeral });
 }
 
 export async function handleAdminShopDeleteShop(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -566,7 +567,7 @@ export async function handleAdminShopDeleteShop(interaction: ChatInputCommandInt
   if (!server) return;
   await db.db.execute({ sql: "DELETE FROM shop_products WHERE category_id IN (SELECT id FROM shop_categories WHERE server_id = ?)", args: [server.id] });
   await db.db.execute({ sql: "DELETE FROM shop_categories WHERE server_id = ?", args: [server.id] });
-  await interaction.reply({ content: "Shop deleted.", ephemeral: true });
+  await interaction.reply({ content: "Shop deleted.", flags: MessageFlags.Ephemeral });
 }
 
 export async function handleAdminShopAddCategory(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -576,7 +577,7 @@ export async function handleAdminShopAddCategory(interaction: ChatInputCommandIn
   const name = interaction.options.getString("name", true);
   const type = interaction.options.getString("type") ?? "item";
   const id = await db.addShopCategory(server.id, name, null, type);
-  await interaction.reply({ content: `Category **${name}** created (ID: ${id}). Players will see it in /shop.`, ephemeral: true });
+  await interaction.reply({ content: `Category **${name}** created (ID: ${id}). Players will see it in /shop.`, flags: MessageFlags.Ephemeral });
 }
 
 export async function handleAdminShopAddSubcategory(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -587,9 +588,9 @@ export async function handleAdminShopAddSubcategory(interaction: ChatInputComman
   const parentName = interaction.options.getString("parent", true);
   const categories = await db.getShopCategories(server.id);
   const parent = categories.find(c => c.name.toLowerCase() === parentName.toLowerCase());
-  if (!parent) { await interaction.reply({ content: `Category "${parentName}" not found.`, ephemeral: true }); return; }
+  if (!parent) { await interaction.reply({ content: `Category "${parentName}" not found.`, flags: MessageFlags.Ephemeral }); return; }
   const id = await db.addShopCategory(server.id, name, parent.id, "item");
-  await interaction.reply({ content: `Subcategory **${name}** under **${parent.name}** created (ID: ${id}).`, ephemeral: true });
+  await interaction.reply({ content: `Subcategory **${name}** under **${parent.name}** created (ID: ${id}).`, flags: MessageFlags.Ephemeral });
 }
 
 export async function handleAdminShopAddItem(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -605,13 +606,13 @@ export async function handleAdminShopAddItem(interaction: ChatInputCommandIntera
 
   const categories = await db.getShopCategories(server.id);
   const cat = categories.find(c => c.name.toLowerCase() === categoryName.toLowerCase());
-  if (!cat) { await interaction.reply({ content: `Category "${categoryName}" not found. Create it first with /admin-shop-add-category.`, ephemeral: true }); return; }
+  if (!cat) { await interaction.reply({ content: `Category "${categoryName}" not found. Create it first with /admin-shop-add-category.`, flags: MessageFlags.Ephemeral }); return; }
 
   const id = await db.addShopProduct(cat.id, name, shortname, price, timerHours);
   if (stock !== -1) {
     await db.db.execute({ sql: "UPDATE shop_products SET stock = ? WHERE id = ?", args: [stock, id] });
   }
-  await interaction.reply({ content: `Item **${name}** (\`${shortname}\`) added to **${cat.name}** for ${price} ${(await getCurrency(server.id))} (ID: ${id}).`, ephemeral: true });
+  await interaction.reply({ content: `Item **${name}** (\`${shortname}\`) added to **${cat.name}** for ${price} ${(await getCurrency(server.id))} (ID: ${id}).`, flags: MessageFlags.Ephemeral });
 }
 
 export async function handleAdminShopAddKit(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -625,10 +626,10 @@ export async function handleAdminShopAddKit(interaction: ChatInputCommandInterac
 
   const categories = await db.getShopCategories(server.id);
   const cat = categories.find(c => c.name.toLowerCase() === categoryName.toLowerCase());
-  if (!cat) { await interaction.reply({ content: `Category "${categoryName}" not found.`, ephemeral: true }); return; }
+  if (!cat) { await interaction.reply({ content: `Category "${categoryName}" not found.`, flags: MessageFlags.Ephemeral }); return; }
 
   const id = await db.addShopProduct(cat.id, kName, `kit:${kName}`, price, timerHours);
-  await interaction.reply({ content: `Kit **${kName}** added to **${cat.name}** for ${price} ${(await getCurrency(server.id))} (ID: ${id}).`, ephemeral: true });
+  await interaction.reply({ content: `Kit **${kName}** added to **${cat.name}** for ${price} ${(await getCurrency(server.id))} (ID: ${id}).`, flags: MessageFlags.Ephemeral });
 }
 
 export async function handleAdminShopEditProduct(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -638,14 +639,14 @@ export async function handleAdminShopEditProduct(interaction: ChatInputCommandIn
   const stock = interaction.options.getInteger("stock");
   if (price !== null) await db.db.execute({ sql: "UPDATE shop_products SET price = ? WHERE id = ?", args: [price, productId] });
   if (stock !== null) await db.db.execute({ sql: "UPDATE shop_products SET stock = ? WHERE id = ?", args: [stock, productId] });
-  await interaction.reply({ content: `Product ${productId} updated.`, ephemeral: true });
+  await interaction.reply({ content: `Product ${productId} updated.`, flags: MessageFlags.Ephemeral });
 }
 
 export async function handleAdminShopRemoveProduct(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!await requireRole(interaction, "avivadmin")) return;
   const productId = interaction.options.getInteger("product_id", true);
   await db.removeShopProduct(productId);
-  await interaction.reply({ content: `Product ${productId} removed.`, ephemeral: true });
+  await interaction.reply({ content: `Product ${productId} removed.`, flags: MessageFlags.Ephemeral });
 }
 
 export async function handleDelayshop(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -654,7 +655,7 @@ export async function handleDelayshop(interaction: ChatInputCommandInteraction):
   if (!server) return;
   const minutes = interaction.options.getInteger("minutes", true);
   shopClosed.set(server.id, Date.now() + minutes * 60000);
-  await interaction.reply({ content: `Shop closed for ${minutes} minute(s).`, ephemeral: true });
+  await interaction.reply({ content: `Shop closed for ${minutes} minute(s).`, flags: MessageFlags.Ephemeral });
 }
 
 export async function handleOpenshop(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -662,5 +663,5 @@ export async function handleOpenshop(interaction: ChatInputCommandInteraction): 
   const server = await getServerForInteraction(interaction);
   if (!server) return;
   shopClosed.delete(server.id);
-  await interaction.reply({ content: "Shop reopened.", ephemeral: true });
+  await interaction.reply({ content: "Shop reopened.", flags: MessageFlags.Ephemeral });
 }

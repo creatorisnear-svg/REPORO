@@ -1,5 +1,5 @@
 import type { ChatInputCommandInteraction } from "discord.js";
-import { EmbedBuilder } from "discord.js";
+import { EmbedBuilder, MessageFlags } from "discord.js";
 import * as db from "@workspace/db";
 import { getServerForInteraction, requireRole } from "./utils.js";
 
@@ -8,7 +8,7 @@ export async function handleLink(interaction: ChatInputCommandInteraction): Prom
   const server = await getServerForInteraction(interaction);
   if (!server) return;
 
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const ingameName = interaction.options.getString("ingame_name", true).trim();
   const existing = await db.getPlayerByDiscord(server.id, interaction.user.id);
@@ -43,7 +43,7 @@ export async function handleUnlink(interaction: ChatInputCommandInteraction): Pr
   const server = await getServerForInteraction(interaction);
   if (!server) return;
 
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const player = await db.getPlayerByDiscord(server.id, interaction.user.id);
   if (!player) {
@@ -71,7 +71,7 @@ export async function handleAdminLink(interaction: ChatInputCommandInteraction):
   const server = await getServerForInteraction(interaction);
   if (!server) return;
 
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const ingameName = interaction.options.getString("ingame_name", true).trim();
   const targetUser = interaction.options.getUser("discord_user", true);
@@ -92,7 +92,7 @@ export async function handleAdminLink(interaction: ChatInputCommandInteraction):
 
 export async function handleWhois(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!interaction.guild) return;
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const targetUser = interaction.options.getUser("discord_user");
   const ingameName = interaction.options.getString("ingame_name");
@@ -132,7 +132,7 @@ export async function handleSyncMe(interaction: ChatInputCommandInteraction): Pr
   if (!interaction.guild) return;
   const server = await getServerForInteraction(interaction);
   if (!server) return;
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const player = await db.getPlayerByDiscord(server.id, interaction.user.id);
   if (!player) {
@@ -150,7 +150,7 @@ export async function handleSyncTarget(interaction: ChatInputCommandInteraction)
   const server = await getServerForInteraction(interaction);
   if (!server) return;
 
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const targetUser = interaction.options.getUser("player", true);
   const player = await db.getPlayerByDiscord(server.id, targetUser.id);
@@ -168,7 +168,7 @@ export async function handleGetPlayerinfo(interaction: ChatInputCommandInteracti
   const server = await getServerForInteraction(interaction);
   if (!server) return;
 
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const ingameName = interaction.options.getString("ingame_name", true);
   const player = await db.getPlayerByIngameName(server.id, ingameName);

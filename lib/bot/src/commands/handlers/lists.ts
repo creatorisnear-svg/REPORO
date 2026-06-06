@@ -1,5 +1,5 @@
 import type { ChatInputCommandInteraction } from "discord.js";
-import { EmbedBuilder } from "discord.js";
+import { EmbedBuilder, MessageFlags } from "discord.js";
 import * as db from "@workspace/db";
 import { getServerForInteraction, requireRole } from "./utils.js";
 import { rconManager } from "../../rcon/manager.js";
@@ -32,7 +32,7 @@ export async function handleAddToList(interaction: ChatInputCommandInteraction):
     }
   }
 
-  await interaction.reply({ content: `Added **${ingameName}** to **${listName}** on Server ${server.server_number}.`, ephemeral: true });
+  await interaction.reply({ content: `Added **${ingameName}** to **${listName}** on Server ${server.server_number}.`, flags: MessageFlags.Ephemeral });
 }
 
 export async function handleRemoveFromList(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -51,7 +51,7 @@ export async function handleRemoveFromList(interaction: ChatInputCommandInteract
     } catch { /* ignore */ }
   }
 
-  await interaction.reply({ content: `Removed **${ingameName}** from **${listName}** on Server ${server.server_number}.`, ephemeral: true });
+  await interaction.reply({ content: `Removed **${ingameName}** from **${listName}** on Server ${server.server_number}.`, flags: MessageFlags.Ephemeral });
 }
 
 export async function handleGetList(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -59,7 +59,7 @@ export async function handleGetList(interaction: ChatInputCommandInteraction): P
   const server = await getServerForInteraction(interaction);
   if (!server) return;
 
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const listName = interaction.options.getString("list", true).trim();
   const entries = await db.getList(server.id, listName);

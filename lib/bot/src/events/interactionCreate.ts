@@ -1,4 +1,5 @@
 import type { Interaction } from "discord.js";
+import { MessageFlags } from "discord.js";
 import { commands } from "../commands/registry.js";
 import { handleAvivButton } from "../commands/handlers/setup.js";
 import { handleShopInteraction } from "../commands/handlers/shop.js";
@@ -47,7 +48,7 @@ export async function handleInteractionCreate(interaction: Interaction): Promise
 
   const cmd = commands.find(c => c.data.name === interaction.commandName);
   if (!cmd) {
-    await interaction.reply({ content: "Unknown command.", ephemeral: true }).catch(() => null);
+    await interaction.reply({ content: "Unknown command.", flags: MessageFlags.Ephemeral }).catch(() => null);
     return;
   }
 
@@ -55,7 +56,7 @@ export async function handleInteractionCreate(interaction: Interaction): Promise
     await cmd.execute(interaction);
   } catch (err) {
     console.error(`[Bot] Command /${interaction.commandName} error:`, err);
-    const msg = { content: "An error occurred while executing this command.", ephemeral: true };
+    const msg = { content: "An error occurred while executing this command.", flags: MessageFlags.Ephemeral };
     if (interaction.replied || interaction.deferred) {
       await interaction.followUp(msg).catch(() => null);
     } else {
