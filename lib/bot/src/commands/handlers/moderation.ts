@@ -14,9 +14,21 @@ async function logCmd(interaction: ChatInputCommandInteraction, server: db.Serve
   }
 }
 
-async function rcon(server: db.ServerRow, cmd: string): Promise<void> {
-  if (!server.rcon_host) return;
-  await rconManager.sendFireAndForget(server.id, server.rcon_host, server.rcon_port!, server.rcon_password!, cmd).catch(() => null);
+async function sendRcon(server: db.ServerRow, cmd: string): Promise<{ ok: boolean; error?: string }> {
+  if (!server.rcon_host) {
+    return { ok: false, error: "RCON host not set. Use /add-server to configure RCON." };
+  }
+  try {
+    await rconManager.sendFireAndForget(server.id, server.rcon_host, server.rcon_port!, server.rcon_password!, cmd);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: String(err) };
+  }
+}
+
+function rconNote(result: { ok: boolean; error?: string }): string {
+  if (result.ok) return "";
+  return `\n\n**RCON Warning:** Command may not have reached the server — ${result.error}\nCheck RCON status with \`/diag\`.`;
 }
 
 export async function handleKick(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -24,12 +36,16 @@ export async function handleKick(interaction: ChatInputCommandInteraction): Prom
   const server = await getServerForInteraction(interaction);
   if (!server) return;
 
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
   const ingameName = interaction.options.getString("ingame_name", true);
   const reason = interaction.options.getString("reason") ?? "No reason given";
 
-  await rcon(server, `kick ${ingameName} "${reason}"`);
+  const result = await sendRcon(server, `kick "${ingameName}" "${reason}"`);
   await logCmd(interaction, server, `kicked **${ingameName}** — ${reason}`);
-  await interaction.reply({ content: `Kicked **${ingameName}** (${reason}).`, flags: MessageFlags.Ephemeral });
+  await interaction.editReply({
+    content: `Kicked **${ingameName}** (${reason}).${rconNote(result)}`,
+  });
 }
 
 export async function handleBan(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -37,12 +53,16 @@ export async function handleBan(interaction: ChatInputCommandInteraction): Promi
   const server = await getServerForInteraction(interaction);
   if (!server) return;
 
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
   const ingameName = interaction.options.getString("ingame_name", true);
   const reason = interaction.options.getString("reason") ?? "No reason given";
 
-  await rcon(server, `ban ${ingameName} "${reason}"`);
+  const result = await sendRcon(server, `ban "${ingameName}" "${reason}"`);
   await logCmd(interaction, server, `banned **${ingameName}** — ${reason}`);
-  await interaction.reply({ content: `Banned **${ingameName}** (${reason}).`, flags: MessageFlags.Ephemeral });
+  await interaction.editReply({
+    content: `Banned **${ingameName}** (${reason}).${rconNote(result)}`,
+  });
 }
 
 export async function handleUnban(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -50,10 +70,14 @@ export async function handleUnban(interaction: ChatInputCommandInteraction): Pro
   const server = await getServerForInteraction(interaction);
   if (!server) return;
 
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
   const ingameName = interaction.options.getString("ingame_name", true);
-  await rcon(server, `unban ${ingameName}`);
+  const result = await sendRcon(server, `unban "${ingameName}"`);
   await logCmd(interaction, server, `unbanned **${ingameName}**`);
-  await interaction.reply({ content: `Unbanned **${ingameName}**.`, flags: MessageFlags.Ephemeral });
+  await interaction.editReply({
+    content: `Unbanned **${ingameName}**.${rconNote(result)}`,
+  });
 }
 
 export async function handleMute(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -61,10 +85,14 @@ export async function handleMute(interaction: ChatInputCommandInteraction): Prom
   const server = await getServerForInteraction(interaction);
   if (!server) return;
 
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
   const ingameName = interaction.options.getString("ingame_name", true);
-  await rcon(server, `mute ${ingameName}`);
+  const result = await sendRcon(server, `mute "${ingameName}"`);
   await logCmd(interaction, server, `muted **${ingameName}**`);
-  await interaction.reply({ content: `Muted **${ingameName}**.`, flags: MessageFlags.Ephemeral });
+  await interaction.editReply({
+    content: `Muted **${ingameName}**.${rconNote(result)}`,
+  });
 }
 
 export async function handleUnmute(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -72,10 +100,14 @@ export async function handleUnmute(interaction: ChatInputCommandInteraction): Pr
   const server = await getServerForInteraction(interaction);
   if (!server) return;
 
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
   const ingameName = interaction.options.getString("ingame_name", true);
-  await rcon(server, `unmute ${ingameName}`);
+  const result = await sendRcon(server, `unmute "${ingameName}"`);
   await logCmd(interaction, server, `unmuted **${ingameName}**`);
-  await interaction.reply({ content: `Unmuted **${ingameName}**.`, flags: MessageFlags.Ephemeral });
+  await interaction.editReply({
+    content: `Unmuted **${ingameName}**.${rconNote(result)}`,
+  });
 }
 
 export async function handleWarn(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -83,15 +115,19 @@ export async function handleWarn(interaction: ChatInputCommandInteraction): Prom
   const server = await getServerForInteraction(interaction);
   if (!server) return;
 
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
   const ingameName = interaction.options.getString("ingame_name", true);
   const reason = interaction.options.getString("reason", true);
 
   await db.addWarning(server.id, ingameName, reason);
   const allWarnings = await db.getWarnings(server.id, ingameName);
 
-  await rcon(server, `say ${ingameName} has received a warning: ${reason}`);
+  const result = await sendRcon(server, `say "${ingameName} has received a warning: ${reason}"`);
   await logCmd(interaction, server, `warned **${ingameName}** (${allWarnings.length} total) — ${reason}`);
-  await interaction.reply({ content: `Warning issued to **${ingameName}** (${allWarnings.length} total). Reason: ${reason}`, flags: MessageFlags.Ephemeral });
+  await interaction.editReply({
+    content: `Warning issued to **${ingameName}** (${allWarnings.length} total). Reason: ${reason}${rconNote(result)}`,
+  });
 }
 
 export async function handleWarnings(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -120,8 +156,10 @@ export async function handleClearwarnings(interaction: ChatInputCommandInteracti
   const server = await getServerForInteraction(interaction);
   if (!server) return;
 
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
   const ingameName = interaction.options.getString("ingame_name", true);
   await db.clearWarnings(server.id, ingameName);
   await logCmd(interaction, server, `cleared warnings for **${ingameName}**`);
-  await interaction.reply({ content: `Cleared all warnings for **${ingameName}**.`, flags: MessageFlags.Ephemeral });
+  await interaction.editReply({ content: `Cleared all warnings for **${ingameName}**.` });
 }
