@@ -161,34 +161,38 @@ export async function handleDiag(interaction: ChatInputCommandInteraction): Prom
   await interaction.editReply({ embeds: [embed] });
 }
 
-const CATEGORY_CONFIGS: Record<string, { label: string; keys: string[] }> = {
+export const CATEGORY_CONFIGS: Record<string, { label: string; keys: string[] }> = {
   kits: {
-    label: "Kits Settings",
-    keys: ["freekit_use","freekit_time","freekit_name","vipkit_use","vipkit_time","vipkit_name","elitekit_use","elitekit_time","recyclers_use","recyclers_time","recyclers_uselist"],
+    label: "🎁 Kits Settings",
+    keys: ["FREEkit","FREEkit-time","FREEkit-name","VIPkit","VIPkit-time","VIPkit-name","elitekit_use","elitekit_time","recyclers_use","recyclers_time","recyclers_uselist"],
   },
   economy: {
-    label: "Economy Settings",
-    keys: ["currency_name","player_kill_points","scientist_kill_points","daily_min","daily_max"],
+    label: "💰 Economy Settings",
+    keys: ["currency_name","player_kill_points","scientist_kill_points","daily_min","daily_max","BountySystem","BountyReward","BountyMinKills","BountyScale"],
   },
   shop: {
-    label: "Shop Settings",
-    keys: ["shop_max_daily_spend"],
+    label: "🛒 Shop Settings",
+    keys: ["shop_max_daily_spend","shop-universal"],
   },
   zorp: {
-    label: "ZORP Settings",
+    label: "🛡️ ZORP Settings",
     keys: ["zorp","zorptime","zorpExpiryTime","zorpallowlist"],
   },
-  teleport: {
-    label: "Teleport Settings",
-    keys: ["TPN_use","TPN_time","TPNE_use","TPE_use","TPSE_use","TPS_use","TPSW_use","TPW_use","TPNW_use","TPHOME_use","TPHOME_time"],
+  teleports: {
+    label: "🌀 Teleport Settings",
+    keys: ["TPN_use","TPN_time","TPNE_use","TPE_use","TPSE_use","TPS_use","TPSW_use","TPW_use","TPNW_use","TPHOME_use","combatlock_use","combatlock_time"],
   },
   killfeed: {
-    label: "Kill Feed Settings",
-    keys: ["KillFeedDiscord","KillFeedGame","KillFeedKD","MiscKills","ScientistKiller","ScientistVictim"],
+    label: "⚔️ Kill Feed Settings",
+    keys: ["KillFeedDiscord","KillFeedGame","KillFeedKD","MiscKills","ScientistKiller","ScientistVictim","killercolor","victimcolor","phrasecolor","killphrase","killphraserandomizer"],
   },
   moderation: {
-    label: "Moderation Settings",
-    keys: ["BountySystem","BountyReward","BountyMinKills","combatlock_use","combatlock_time","notemessaging"],
+    label: "🔨 Moderation Settings",
+    keys: ["notemessaging"],
+  },
+  misc: {
+    label: "⚙️ Other Settings",
+    keys: ["chatbridge","scheduler","scheduler-time","SRP","recyclers_use"],
   },
 };
 
@@ -216,30 +220,35 @@ export async function handleAviv(interaction: ChatInputCommandInteraction): Prom
     );
 
   const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(`aviv_kits_${server.id}`).setLabel("Kits").setStyle(ButtonStyle.Secondary).setEmoji("🎁"),
-    new ButtonBuilder().setCustomId(`aviv_economy_${server.id}`).setLabel("Economy").setStyle(ButtonStyle.Secondary).setEmoji("💰"),
-    new ButtonBuilder().setCustomId(`aviv_shop_${server.id}`).setLabel("Shop").setStyle(ButtonStyle.Secondary).setEmoji("🛒"),
-    new ButtonBuilder().setCustomId(`aviv_zorp_${server.id}`).setLabel("ZORP").setStyle(ButtonStyle.Secondary).setEmoji("🔰"),
+    new ButtonBuilder().setCustomId("aviv_kits").setLabel("Kits").setStyle(ButtonStyle.Secondary).setEmoji("🎁"),
+    new ButtonBuilder().setCustomId("aviv_economy").setLabel("Economy").setStyle(ButtonStyle.Secondary).setEmoji("💰"),
+    new ButtonBuilder().setCustomId("aviv_shop").setLabel("Shop").setStyle(ButtonStyle.Secondary).setEmoji("🛒"),
+    new ButtonBuilder().setCustomId("aviv_zorp").setLabel("ZORP").setStyle(ButtonStyle.Secondary).setEmoji("🛡️"),
   );
 
   const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(`aviv_teleport_${server.id}`).setLabel("Teleport").setStyle(ButtonStyle.Secondary).setEmoji("🌀"),
-    new ButtonBuilder().setCustomId(`aviv_killfeed_${server.id}`).setLabel("Kill Feed").setStyle(ButtonStyle.Secondary).setEmoji("⚔️"),
-    new ButtonBuilder().setCustomId(`aviv_moderation_${server.id}`).setLabel("Moderation").setStyle(ButtonStyle.Secondary).setEmoji("🛡️"),
+    new ButtonBuilder().setCustomId("aviv_teleports").setLabel("Teleports").setStyle(ButtonStyle.Secondary).setEmoji("🌀"),
+    new ButtonBuilder().setCustomId("aviv_killfeed").setLabel("Kill Feed").setStyle(ButtonStyle.Secondary).setEmoji("⚔️"),
+    new ButtonBuilder().setCustomId("aviv_moderation").setLabel("Moderation").setStyle(ButtonStyle.Secondary).setEmoji("🔨"),
+    new ButtonBuilder().setCustomId("aviv_misc").setLabel("Other").setStyle(ButtonStyle.Secondary).setEmoji("⚙️"),
   );
 
   await interaction.editReply({ embeds: [embed], components: [row1, row2] });
 }
 
 export async function handleAvivButton(interaction: ButtonInteraction): Promise<void> {
-  const parts = interaction.customId.split("_");
-  // aviv_<category>_<serverId>
-  const category = parts[1];
-  const serverId = parseInt(parts[2] ?? "0", 10);
+  const category = interaction.customId.replace("aviv_", "");
 
   const catDef = CATEGORY_CONFIGS[category];
-  if (!catDef || !serverId) {
+  if (!catDef) {
     await interaction.reply({ content: "Unknown category.", ephemeral: true });
+    return;
+  }
+
+  const servers = await db.getServersByGuild(interaction.guildId ?? "").catch(() => []);
+  const server = servers[0];
+  if (!server) {
+    await interaction.update({ content: "No server configured.", components: [] });
     return;
   }
 
@@ -247,16 +256,16 @@ export async function handleAvivButton(interaction: ButtonInteraction): Promise<
 
   const configs = await Promise.all(
     catDef.keys.map(async key => {
-      const val = await db.getConfig(serverId, key);
+      const val = await db.getConfig(server.id, key);
       return `\`${key}\`: ${val ?? "*(not set)*"}`;
     })
   );
 
   const embed = new EmbedBuilder()
     .setTitle(catDef.label)
-    .setColor(0x5865f2)
-    .setDescription(configs.join("\n"))
-    .setFooter({ text: "Use /set [config_name] [value] to change any setting." });
+    .setColor(0x00d4aa)
+    .setDescription(configs.join("\n") || "No settings found.")
+    .setFooter({ text: "Use /set [config] [value] to change any setting." });
 
   await interaction.editReply({ embeds: [embed] });
 }

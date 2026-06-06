@@ -9,16 +9,8 @@ export async function handleWipeZorp(interaction: ChatInputCommandInteraction): 
   if (!server) return;
   await interaction.deferReply({ ephemeral: true });
 
-  const zones = await db.getAllZorpZones(server.id);
-  for (const zone of zones) {
-    if (server.rcon_host) {
-      await rconManager.sendCommand(server.id, server.rcon_host, server.rcon_port!, server.rcon_password!,
-        `o.zorp delete ${zone.ingame_name}`).catch(() => null);
-    }
-    await db.deleteZorpZone(server.id, zone.ingame_name);
-  }
-
-  await interaction.editReply({ content: `Deleted ${zones.length} ZORP zone(s) on Server ${server.server_number}.` });
+  await db.wipeZorp(server.id);
+  await interaction.editReply({ content: `✅ All ZORP zones wiped for Server ${server.server_number}.` });
 }
 
 export async function handleDelZorp(interaction: ChatInputCommandInteraction): Promise<void> {

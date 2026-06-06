@@ -38,12 +38,13 @@
     <li><a href="/docs">Docs</a></li>
     <li><a href="/status">Status</a></li>
   </ul>
-  <a href="/api/auth/logout" class="btn btn-outline">Log Out</a>
+  <a href="/auth/logout" class="btn btn-outline">Log Out</a>
 </nav>
 
 <div class="container" style="max-width:960px; padding:2rem 1.5rem;">
   <div id="loading">Loading dashboard...</div>
   <div id="error-msg">Could not load dashboard. <a href="/auth/discord">Log in again</a></div>
+
 
   <div id="dash-content" style="display:none;">
     <div class="user-bar">
@@ -90,7 +91,7 @@ let currentGuildId = null;
 
 async function init() {
   try {
-    const meRes = await fetch('/api/auth/me');
+    const meRes = await fetch('/auth/me');
     if (!meRes.ok) {
       window.location.href = '/auth/discord';
       return;

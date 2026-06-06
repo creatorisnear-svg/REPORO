@@ -5,6 +5,7 @@ import session from "express-session";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import router from "./routes/index.js";
+import authRouter from "./routes/auth.js";
 import { logger } from "./lib/logger.js";
 
 const app: Express = express();
@@ -55,6 +56,7 @@ app.get("/success", (_req, res) => res.sendFile(path.join(publicDir, "setup.html
 app.get("/setup-wizard", (_req, res) => res.sendFile(path.join(publicDir, "setup-wizard.html")));
 app.get("/dashboard", (_req, res) => res.sendFile(path.join(publicDir, "dashboard.html")));
 
+app.use("/auth", authRouter);
 app.use("/api", router);
 
 export default app;

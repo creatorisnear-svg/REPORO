@@ -64,11 +64,8 @@ export async function handleWipeRaidlink(interaction: ChatInputCommandInteractio
   if (!server) return;
   await interaction.deferReply({ ephemeral: true });
 
-  const links = await db.getAllRaidLinks(server.id);
-  for (const link of links) {
-    await db.deleteRaidLink(server.id, link.ingame_name);
-  }
-  await interaction.editReply({ content: `Cleared ${links.length} raid link(s) on Server ${server.server_number}.` });
+  await db.wipeRaidLinks(server.id);
+  await interaction.editReply({ content: `All raid frequency registrations wiped for Server ${server.server_number}.` });
 }
 
 export async function handleDelRaidlink(interaction: ChatInputCommandInteraction): Promise<void> {

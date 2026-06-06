@@ -315,10 +315,35 @@ export async function setBalance(serverId: number, ingameName: string, amount: n
   });
 }
 
-export async function setLastDaily(serverId: number, ingameName: string): Promise<void> {
-  await db.execute({
-    sql: "UPDATE economy SET last_daily = datetime('now') WHERE server_id = ? AND ingame_name = ?",
+export async function getBalance(serverId: number, ingameName: string): Promise<number> {
+  const r = await db.execute({
+    sql: "SELECT balance FROM economy WHERE server_id = ? AND ingame_name = ?",
     args: [serverId, ingameName]
+  });
+  if (!r.rows[0]) return 0;
+  return Number((r.rows[0] as unknown as { balance: number }).balance);
+}
+
+export async function getLastDaily(serverId: number, ingameName: string): Promise<string | null> {
+  const r = await db.execute({
+    sql: "SELECT last_daily FROM economy WHERE server_id = ? AND ingame_name = ?",
+    args: [serverId, ingameName]
+  });
+  if (!r.rows[0]) return null;
+  return (r.rows[0] as unknown as { last_daily: string | null }).last_daily;
+}
+
+export async function setLastDaily(serverId: number, ingameName: string, timestamp?: string): Promise<void> {
+  await db.execute({
+    sql: `UPDATE economy SET last_daily = ${timestamp ? "?" : "datetime('now')"} WHERE server_id = ? AND ingame_name = ?`,
+    args: timestamp ? [timestamp, serverId, ingameName] : [serverId, ingameName]
+  });
+}
+
+export async function addPointsAllPlayers(serverId: number, delta: number): Promise<void> {
+  await db.execute({
+    sql: "UPDATE economy SET balance = MAX(0, balance + ?) WHERE server_id = ?",
+    args: [delta, serverId]
   });
 }
 
@@ -473,6 +498,13 @@ export async function addToPrison(serverId: number, ingameName: string, reason: 
   });
 }
 
+export async function addPrisoner(serverId: number, ingameName: string, reason: string, releaseAt: string): Promise<void> {
+  await db.execute({
+    sql: "INSERT INTO prison (server_id, ingame_name, reason, release_at, active) VALUES (?, ?, ?, ?, 1)",
+    args: [serverId, ingameName, reason, releaseAt]
+  });
+}
+
 export async function getActivePrisoners(serverId: number): Promise<PrisonRow[]> {
   const r = await db.execute({
     sql: "SELECT * FROM prison WHERE server_id = ? AND active = 1 AND release_at > datetime('now')",
@@ -598,6 +630,30 @@ export async function getShopProducts(categoryId: number): Promise<ShopProductRo
   return r.rows as unknown as ShopProductRow[];
 }
 
+export async function getShopProductById(productId: number): Promise<ShopProductRow | null> {
+  const r = await db.execute({
+    sql: "SELECT * FROM shop_products WHERE id = ?",
+    args: [productId]
+  });
+  return (r.rows[0] as unknown as ShopProductRow) ?? null;
+}
+
+export async function getLastShopPurchase(serverId: number, ingameName: string, productId: number): Promise<{ purchased_at: string } | null> {
+  const r = await db.execute({
+    sql: "SELECT purchased_at FROM shop_purchases WHERE server_id = ? AND ingame_name = ? AND product_id = ? ORDER BY purchased_at DESC LIMIT 1",
+    args: [serverId, ingameName, productId]
+  });
+  if (!r.rows[0]) return null;
+  return r.rows[0] as unknown as { purchased_at: string };
+}
+
+export async function recordShopPurchase(serverId: number, ingameName: string, productId: number): Promise<void> {
+  await db.execute({
+    sql: "INSERT INTO shop_purchases (server_id, ingame_name, product_id, purchased_at) VALUES (?, ?, ?, datetime('now'))",
+    args: [serverId, ingameName, productId]
+  });
+}
+
 export async function addShopCategory(serverId: number, name: string, parentId: number | null, type: string): Promise<number> {
   const r = await db.execute({
     sql: "INSERT INTO shop_categories (server_id, name, parent_id, category_type) VALUES (?, ?, ?, ?)",
@@ -645,6 +701,31 @@ export async function deleteRaidLink(serverId: number, ingameName: string): Prom
   await db.execute({
     sql: "DELETE FROM raid_links WHERE server_id = ? AND ingame_name = ?",
     args: [serverId, ingameName]
+  });
+}
+
+export async function addRaidLink(serverId: number, ingameName: string, frequency: string, discordUserId: string): Promise<void> {
+  await upsertRaidLink(serverId, ingameName, frequency, discordUserId);
+}
+
+export async function removeRaidLink(serverId: number, discordUserId: string): Promise<void> {
+  await db.execute({
+    sql: "DELETE FROM raid_links WHERE server_id = ? AND discord_user_id = ?",
+    args: [serverId, discordUserId]
+  });
+}
+
+export async function wipeRaidLinks(serverId: number): Promise<void> {
+  await db.execute({
+    sql: "DELETE FROM raid_links WHERE server_id = ?",
+    args: [serverId]
+  });
+}
+
+export async function wipeZorp(serverId: number): Promise<void> {
+  await db.execute({
+    sql: "DELETE FROM zorp_zones WHERE server_id = ?",
+    args: [serverId]
   });
 }
 
@@ -742,6 +823,13 @@ export async function addTpPosition(serverId: number, positionType: string, x: n
 
 export async function deleteTpPosition(id: number): Promise<void> {
   await db.execute({ sql: "DELETE FROM tp_positions WHERE id = ?", args: [id] });
+}
+
+export async function clearTpPositions(serverId: number, positionType: string): Promise<void> {
+  await db.execute({
+    sql: "DELETE FROM tp_positions WHERE server_id = ? AND position_type = ?",
+    args: [serverId, positionType]
+  });
 }
 
 // ---- prison helpers ----

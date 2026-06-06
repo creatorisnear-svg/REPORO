@@ -442,13 +442,15 @@ async function handleKit(serverId: number, playerName: string, kitType: string):
   const useListKey = `${kitType}_uselist`;
   const uselist = await getConfig(serverId, useListKey) ?? "off";
   if (uselist === "on") {
-    // elitekit -> elitelist1, elitekit2 -> elitelist2, etc.
+    // elitekit -> elitelist1, elitekit2 -> elitelist2, vipkit -> viplist, etc.
     let listName: string;
     if (kitType === "elitekit") {
       listName = "elitelist1";
     } else if (kitType.startsWith("elitekit")) {
       const num = kitType.replace("elitekit", "");
       listName = `elitelist${num}`;
+    } else if (kitType === "vipkit") {
+      listName = "viplist";
     } else {
       listName = `${kitType}list`;
     }
