@@ -35,9 +35,9 @@ async function triggerEvent(client: Client, server: db.ServerRow, eventNum: numb
 
   let cmd: string;
   if (eventType === "airdrop") {
-    cmd = `callairlift ${pos.x} ${pos.y} ${pos.z}`;
+    cmd = `supply.call ${pos.x} ${pos.y} ${pos.z}`;
   } else {
-    cmd = `spawnlootcrate ${pos.x} ${pos.y} ${pos.z}`;
+    cmd = `supply.drop ${pos.x} ${pos.y} ${pos.z}`;
   }
 
   await sendRcon(server, cmd);
@@ -48,7 +48,7 @@ async function triggerEvent(client: Client, server: db.ServerRow, eventNum: numb
   const announceMsg = validMsgs.length > 0 ? validMsgs[Math.floor(Math.random() * validMsgs.length)] : null;
 
   if (announceMsg) {
-    await sendRcon(server, `say "${announceMsg}"`);
+    await sendRcon(server, `global.say "${announceMsg}"`);
   }
 
   const icon = eventType === "airdrop" ? "\u{1F6E9}\uFE0F" : "\u{1F4E6}";

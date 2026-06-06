@@ -41,7 +41,7 @@ export async function handleKick(interaction: ChatInputCommandInteraction): Prom
   const ingameName = interaction.options.getString("ingame_name", true);
   const reason = interaction.options.getString("reason") ?? "No reason given";
 
-  const result = await sendRcon(server, `kick "${ingameName}" "${reason}"`);
+  const result = await sendRcon(server, `global.kick "${ingameName}" "${reason}"`);
   await logCmd(interaction, server, `kicked **${ingameName}** — ${reason}`);
   await interaction.editReply({
     content: `Kicked **${ingameName}** (${reason}).${rconNote(result)}`,
@@ -58,7 +58,7 @@ export async function handleBan(interaction: ChatInputCommandInteraction): Promi
   const ingameName = interaction.options.getString("ingame_name", true);
   const reason = interaction.options.getString("reason") ?? "No reason given";
 
-  const result = await sendRcon(server, `ban "${ingameName}" 0 "${reason}"`);
+  const result = await sendRcon(server, `global.ban "${ingameName}" 0 "${reason}"`);
   await logCmd(interaction, server, `banned **${ingameName}** — ${reason}`);
   await interaction.editReply({
     content: `Banned **${ingameName}** (${reason}).${rconNote(result)}`,
@@ -73,7 +73,7 @@ export async function handleUnban(interaction: ChatInputCommandInteraction): Pro
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const ingameName = interaction.options.getString("ingame_name", true);
-  const result = await sendRcon(server, `unban "${ingameName}"`);
+  const result = await sendRcon(server, `global.unban "${ingameName}"`);
   await logCmd(interaction, server, `unbanned **${ingameName}**`);
   await interaction.editReply({
     content: `Unbanned **${ingameName}**.${rconNote(result)}`,
@@ -88,7 +88,7 @@ export async function handleMute(interaction: ChatInputCommandInteraction): Prom
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const ingameName = interaction.options.getString("ingame_name", true);
-  const result = await sendRcon(server, `mute "${ingameName}"`);
+  const result = await sendRcon(server, `global.mutechat "${ingameName}"`);
   await logCmd(interaction, server, `muted **${ingameName}**`);
   await interaction.editReply({
     content: `Muted **${ingameName}**.${rconNote(result)}`,
@@ -103,7 +103,7 @@ export async function handleUnmute(interaction: ChatInputCommandInteraction): Pr
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const ingameName = interaction.options.getString("ingame_name", true);
-  const result = await sendRcon(server, `unmute "${ingameName}"`);
+  const result = await sendRcon(server, `global.unmutechat "${ingameName}"`);
   await logCmd(interaction, server, `unmuted **${ingameName}**`);
   await interaction.editReply({
     content: `Unmuted **${ingameName}**.${rconNote(result)}`,
@@ -123,7 +123,7 @@ export async function handleWarn(interaction: ChatInputCommandInteraction): Prom
   await db.addWarning(server.id, ingameName, reason);
   const allWarnings = await db.getWarnings(server.id, ingameName);
 
-  const result = await sendRcon(server, `say "${ingameName} has received a warning: ${reason}"`);
+  const result = await sendRcon(server, `global.say "${ingameName} has received a warning: ${reason}"`);
   await logCmd(interaction, server, `warned **${ingameName}** (${allWarnings.length} total) — ${reason}`);
   await interaction.editReply({
     content: `Warning issued to **${ingameName}** (${allWarnings.length} total). Reason: ${reason}${rconNote(result)}`,
@@ -175,7 +175,7 @@ export async function handleTempBan(interaction: ChatInputCommandInteraction): P
   const hours = interaction.options.getInteger("hours", true);
   const reason = interaction.options.getString("reason") ?? "Temporary ban";
 
-  const result = await sendRcon(server, `ban "${ingameName}" ${hours} "${reason}"`);
+  const result = await sendRcon(server, `global.ban "${ingameName}" ${hours} "${reason}"`);
   await logCmd(interaction, server, `temp-banned **${ingameName}** for ${hours}h — ${reason}`);
   await interaction.editReply({
     content: `Temp-banned **${ingameName}** for **${hours} hour(s)**. Reason: ${reason}${rconNote(result)}`,

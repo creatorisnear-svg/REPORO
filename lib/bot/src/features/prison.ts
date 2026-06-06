@@ -58,7 +58,7 @@ export async function runPrisonKeepCheck(client: Client): Promise<void> {
       for (const prisoner of prisoners) {
         await rconManager.sendFireAndForget(
           server.id, server.rcon_host, server.rcon_port!, server.rcon_password!,
-          `teleportpos ${prisoner.ingame_name} ${pos.x} ${pos.y} ${pos.z}`
+          `global.teleportpos ${prisoner.ingame_name} ${pos.x} ${pos.y} ${pos.z}`
         ).catch(() => null);
       }
     }

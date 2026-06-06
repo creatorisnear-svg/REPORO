@@ -3,40 +3,44 @@ name: RCE RCON commands
 description: Correct RCON command syntax for Rust Console Edition (RCE) servers used by Aviv Bot
 ---
 
-## Confirmed RCE RCON Commands
+## Confirmed RCE RCON Commands (verified from console screenshot)
 
-**Kit delivery:** `kit.give "${playerName}" "${kitName}"` — NOT `giveto`
-- Used in parser.ts handleKit and handleDirectionalTp
+**Kit delivery:** `kitmanager.kit "${playerName}" "${kitName}"` — NOT `kit.give`
 
-**Permanent ban:** `ban "${name}" 0 "${reason}"` — 0 = permanent duration (hours), NOT omitting duration
-- `/ban` slash command and `/temp-ban` both use this format (temp-ban passes actual hour count)
+**Permanent ban:** `global.ban "${name}" 0 "${reason}"` — 0 = permanent duration, global. prefix required
 
-**Kick:** `kick "${name}" "${reason}"` — same as PC Rust
+**Temp ban:** `global.ban "${name}" ${hours} "${reason}"`
 
-**Mute/unmute:** `mute "${name}"` / `unmute "${name}"` — same as PC Rust
+**Kick:** `global.kick "${name}" "${reason}"`
 
-**Teleport to position:** `teleportpos ${name} ${x} ${y} ${z}` — no quotes needed
+**Unban:** `global.unban "${name}"`
 
-**Teleport to bed:** `teleport2bed ${name}`
+**Mute/unmute:** `global.mutechat "${name}"` / `global.unmutechat "${name}"`
 
-**Kill player:** `kill ${name}`
+**Teleport to position:** `global.teleportpos ${name} ${x} ${y} ${z}` — global. prefix required, no quotes on coords
 
-**Give items:** `inventory.give "${name}" "${shortname}" ${amount}`
+**Kill player:** `global.killplayer ${name}` — NOT `kill`
 
-**ZORP:** `o.zorp create ${name}` / `o.zorp delete ${name}` — o. prefix
+**Say in chat:** `global.say "message"` — global. prefix required
 
-**Recycler:** `spawnrecycler ${name}` — plugin-specific command
+**Give items:** `inventory.give "${name}" "${shortname}" ${amount}` — no global. prefix
 
-**Unban all:** `unbanall`
+**Airdrop event:** `supply.call ${x} ${y} ${z}` — NOT `callairlift`
+
+**Crate event:** `supply.drop ${x} ${y} ${z}` — NOT `spawnlootcrate`
+
+**Helicopter:** `heli.call`
 
 **Server quit/restart:** `quit`
 
-**Say in chat:** `say "message"`
+**Unban all:** `unbanall`
 
-**Event commands (unverified - may need adjustment):**
-- Airdrop: `callairlift x y z`
-- Crate: `spawnlootcrate x y z`
+**ZORP:** `o.zorp create ${name}` / `o.zorp delete ${name}`
 
-**Why:** These are RCE-specific or confirmed via ka0s.uk docs. The main differences from PC Rust are kit.give (not giveto), ban with duration field, and inventory.give for items.
+**Recycler:** `spawnrecycler ${name}` — unverified, plugin-specific
 
-**How to apply:** Any new RCON command in parser.ts, moderation.ts, admin-wipe.ts should follow these patterns. Verify event commands with the server owner since callairlift/spawnlootcrate are unconfirmed for RCE.
+**Teleport to bed:** `teleport2bed ${name}` — unverified in RCE console screenshots
+
+**Why:** Confirmed from RCE server console screenshots shared by user. RCE requires `global.` prefix on most player management commands unlike PC Rust. Kit command is `kitmanager.kit` (plugin), supply events are `supply.call`/`supply.drop`.
+
+**How to apply:** Any new RCON command must use these exact prefixes. The `global.` prefix is required for kick/ban/unban/mute/unmute/teleportpos/say/killplayer. Items use `inventory.give` (no prefix). Kits use `kitmanager.kit` (no prefix).

@@ -28,7 +28,7 @@ export async function handleMessageCreate(message: Message): Promise<void> {
     const safeMsg = message.content.replace(/"/g, "'").substring(0, 128);
     await rconManager.sendCommand(
       server.id, server.rcon_host, server.rcon_port!, server.rcon_password!,
-      `say [Discord] ${message.author.username}: ${safeMsg}`
+      `global.say [Discord] ${message.author.username}: ${safeMsg}`
     ).catch(() => null);
   }
 
@@ -128,7 +128,7 @@ export async function handleMessageCreate(message: Message): Promise<void> {
   if (prefix === "!say") {
     const server = guildServers.find(s => s.server_number === 1);
     if (!server) { await message.reply("No server 1 configured.").catch(() => null); return; }
-    const response = await sendToServer(server, `say ${args}`);
+    const response = await sendToServer(server, `global.say ${args}`);
     await message.reply(`**Server 1 response:** ${response}`).catch(() => null);
     return;
   }

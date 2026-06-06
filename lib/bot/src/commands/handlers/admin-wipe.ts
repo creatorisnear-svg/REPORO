@@ -131,7 +131,7 @@ export async function handleBanboom(interaction: ChatInputCommandInteraction): P
 
     for (const name of names) {
       await rconManager.sendFireAndForget(
-        server.id, server.rcon_host, server.rcon_port!, server.rcon_password!, `ban "${name}" 0 "${reason}"`
+        server.id, server.rcon_host, server.rcon_port!, server.rcon_password!, `global.ban "${name}" 0 "${reason}"`
       ).catch(() => null);
     }
 
@@ -171,7 +171,7 @@ export async function handleTimedrestart(interaction: ChatInputCommandInteractio
   }
 
   const warningMsg = `Server is restarting in ${minutes} minute(s). Save your progress!`;
-  await sendRcon(server, `say "${warningMsg}"`);
+  await sendRcon(server, `global.say "${warningMsg}"`);
 
   setTimeout(async () => {
     await sendRcon(server, "quit");
@@ -229,9 +229,9 @@ export async function handleTriggerEvent(interaction: ChatInputCommandInteractio
 
   let cmd: string;
   if (eventType === "airdrop") {
-    cmd = `callairlift ${pos.x} ${pos.y} ${pos.z}`;
+    cmd = `supply.call ${pos.x} ${pos.y} ${pos.z}`;
   } else {
-    cmd = `spawnlootcrate ${pos.x} ${pos.y} ${pos.z}`;
+    cmd = `supply.drop ${pos.x} ${pos.y} ${pos.z}`;
   }
 
   const result = await sendRcon(server, cmd);
@@ -241,7 +241,7 @@ export async function handleTriggerEvent(interaction: ChatInputCommandInteractio
   const announceMsg = validMsgs.length > 0 ? validMsgs[Math.floor(Math.random() * validMsgs.length)] : null;
 
   if (announceMsg && server.rcon_host) {
-    await sendRcon(server, `say "${announceMsg}"`);
+    await sendRcon(server, `global.say "${announceMsg}"`);
   }
 
   if (interaction.guild) {
