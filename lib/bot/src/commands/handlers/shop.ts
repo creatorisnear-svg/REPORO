@@ -299,9 +299,8 @@ export async function handleShopInteraction(
     const product = await db.getShopProductById(productId);
     if (!product) { await interaction.update({ content: "Item not found.", embeds: [], components: [] }); return; }
 
-    // Increment qty (max 10)
     const current = basket.get(productId) ?? 0;
-    basket.set(productId, Math.min(current + 1, 10));
+    basket.set(productId, current + 1);
 
     const server = await db.getServerById(serverId);
     if (!server) { await interaction.update({ content: "Server not found.", embeds: [], components: [] }); return; }
