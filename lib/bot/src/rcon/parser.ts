@@ -18,6 +18,10 @@ export function getRconLogBuffer(serverId: number): Array<{ ts: number; type: st
   return rconLogBuffer.get(serverId) ?? [];
 }
 
+export async function simulateKill(serverId: number, killer: string, victim: string, weapon: string): Promise<void> {
+  await handleKill(serverId, killer, victim, weapon);
+}
+
 function pushRconLog(serverId: number, type: string, msg: string): void {
   if (!rconLogBuffer.has(serverId)) rconLogBuffer.set(serverId, []);
   const buf = rconLogBuffer.get(serverId)!;
@@ -113,9 +117,14 @@ async function postToChannel(serverId: number, channelType: string, content: str
   } catch { /* channel not accessible */ }
 }
 
-// Strip Steam ID suffixes like [76561198xxx/123456] that RCE appends to player names in logs
-function stripSteamId(name: string): string {
-  return name.replace(/\s*\[[\d]+\/[\d]+\]\s*$/, "").trim();
+// Strip platform/ID tags that RCE appends to player names in log output.
+// Handles: [PS5], [XBONE], [PC], [PS4], [GAMEPASS], [76561198xxx/123456], etc.
+function cleanPlayerName(name: string): string {
+  return name
+    .replace(/\s*\[\w[\w\d]*\]\s*$/, "")   // [PS5], [XBONE], [PC] etc.
+    .replace(/\s*\[[\d]+\/[\d]+\]\s*$/, "") // [steamId/uid]
+    .replace(/[!.]+$/, "")                  // trailing punctuation
+    .trim();
 }
 
 // Attempt to parse a kill event from a raw RCE log line.
@@ -130,20 +139,20 @@ function parseKillLine(raw: string): { killer: string; victim: string; weapon: s
   const fmtA = raw.match(/^(.+?)\s+was killed by\s+(.+?)\s+with\s+(.+)$/i);
   if (fmtA) {
     return {
-      victim: stripSteamId(fmtA[1]!),
-      killer: stripSteamId(fmtA[2]!),
-      weapon: fmtA[3]!.trim(),
+      victim: cleanPlayerName(fmtA[1]!),
+      killer: cleanPlayerName(fmtA[2]!),
+      weapon: fmtA[3]!.trim().replace(/[!.]+$/, ""),
     };
   }
 
-  // RCE Format B: victim was killed by killer  (no weapon specified)
+  // RCE Format B: victim was killed by cause  (no "with weapon" — e.g. "zoktu was killed by fall!")
   const fmtB = raw.match(/^(.+?)\s+was killed by\s+(.+)$/i);
   if (fmtB) {
-    const killer = stripSteamId(fmtB[2]!.trim());
+    const cause = cleanPlayerName(fmtB[2]!.trim());
     return {
-      victim: stripSteamId(fmtB[1]!),
-      killer,
-      weapon: killer,
+      victim: cleanPlayerName(fmtB[1]!),
+      killer: cause,
+      weapon: cause,
     };
   }
 
@@ -151,16 +160,16 @@ function parseKillLine(raw: string): { killer: string; victim: string; weapon: s
   const fmtC = raw.match(/^(.+?)\s+killed\s+(.+?)\s+with\s+(.+)$/i);
   if (fmtC) {
     return {
-      killer: stripSteamId(fmtC[1]!),
-      victim: stripSteamId(fmtC[2]!),
-      weapon: fmtC[3]!.trim(),
+      killer: cleanPlayerName(fmtC[1]!),
+      victim: cleanPlayerName(fmtC[2]!),
+      weapon: fmtC[3]!.trim().replace(/[!.]+$/, ""),
     };
   }
 
   // RCE Format D: victim committed suicide / victim died
   const fmtD = raw.match(/^(.+?)\s+(?:committed suicide|died)\b/i);
   if (fmtD) {
-    const name = stripSteamId(fmtD[1]!);
+    const name = cleanPlayerName(fmtD[1]!);
     return { killer: name, victim: name, weapon: "suicide" };
   }
 
@@ -196,17 +205,19 @@ async function handleLog(raw: string, serverId: number, type?: string): Promise<
     }
   }
 
-  // Join events — RCE sends "PlayerName[sid/uid] joined [ip:port]" or "PlayerName[sid/uid] entered the game"
-  const joinMatch = raw.match(/^(.+?)\s+(?:joined\b|has entered the game)/i);
+  // Join events — RCE: "zoktu [PS5] has entered the game"
+  const joinMatch = raw.match(/^(.+?)\s+has entered the game/i)
+    ?? raw.match(/^(.+?)\s+joined\b/i);
   if (joinMatch) {
-    await handleJoin(serverId, stripSteamId(joinMatch[1]!));
+    await handleJoin(serverId, cleanPlayerName(joinMatch[1]!));
     return;
   }
 
-  // Leave events — RCE sends "PlayerName[sid/uid] disconnecting" or "has left the game"
-  const leaveMatch = raw.match(/^(.+?)\s+(?:disconnecting\b|has left the game)/i);
+  // Leave events — RCE: "zoktu [PS5] disconnecting" or "has left the game"
+  const leaveMatch = raw.match(/^(.+?)\s+has left the game/i)
+    ?? raw.match(/^(.+?)\s+disconnecting\b/i);
   if (leaveMatch) {
-    await handleLeave(serverId, stripSteamId(leaveMatch[1]!));
+    await handleLeave(serverId, cleanPlayerName(leaveMatch[1]!));
     return;
   }
 
@@ -246,9 +257,9 @@ const killAntiAbuseMap = new Map<string, number>();
 const SCIENTIST_RE = /scientist/i;
 const NPC_RE = /scientist|dweller|bear|wolf|boar|stag|chicken|horse|zombie|bradley|helicopter|patrol|npc/i;
 
-// Environmental / world-kill detection
-const WORLD_KILLER_RE = /^(world|fall|environment|hunger|thirst|radiation|cold|hot|bleeding|suicide|drowned?|trap)$/i;
-const ENV_WEAPON_RE = /fall|drown|bleed|radiation|cold|heat|hunger|thirst|trap|suicide/i;
+// Environmental / world-kill detection — matches cleaned cause strings (no trailing punctuation)
+const WORLD_KILLER_RE = /^(?:world|fall(?:\s+damage)?|fall(?:\s+height)?|environment|hunger|thirst|radiation|cold|heat|hot|bleeding|bleed|suicide|drown(?:ed)?|trap|fire|explosion)$/i;
+const ENV_WEAPON_RE = /fall|drown|bleed|radiation|cold|heat|hunger|thirst|trap|suicide|fire/i;
 
 function isNpc(name: string): boolean { return NPC_RE.test(name); }
 function isScientistName(name: string): boolean { return SCIENTIST_RE.test(name); }

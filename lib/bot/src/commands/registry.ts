@@ -64,6 +64,7 @@ import { handleWipeClaims, handleWipeKills, handleWipeTpHome, handleWipeShopTime
 import { handleStats, handleProfile, handleTopkillers, handleScratch } from "./handlers/player.js";
 import { handleSet, autocompleteSet, handleConfigs } from "./handlers/configs.js";
 import { handleRconLog } from "./handlers/rconlog.js";
+import { handleTestKillfeed } from "./handlers/testkillfeed.js";
 
 function serverOption(cmd: SlashCommandBuilder) {
   return cmd.addIntegerOption(o =>
@@ -107,6 +108,20 @@ export const commands: Command[] = [
   {
     data: new SlashCommandBuilder().setName("diag").setDescription("Diagnostics: RCON health, ping, and status"),
     execute: handleDiag,
+  },
+  {
+    data: serverOption(new SlashCommandBuilder().setName("test-killfeed").setDescription("Fire a fake kill event to test killfeed output (admin only)")
+      .addStringOption(o => o.setName("type").setDescription("Type of kill to simulate").setRequired(false)
+        .addChoices(
+          { name: "PvP (player kills player)", value: "pvp" },
+          { name: "Fall damage / environmental", value: "fall" },
+          { name: "Suicide", value: "suicide" },
+          { name: "Scientist kills player", value: "scientist" },
+        ))
+      .addStringOption(o => o.setName("killer").setDescription("Killer name (for PvP)").setRequired(false))
+      .addStringOption(o => o.setName("victim").setDescription("Victim name").setRequired(false))
+      .addStringOption(o => o.setName("weapon").setDescription("Weapon name").setRequired(false)) as SlashCommandBuilder),
+    execute: handleTestKillfeed,
   },
   {
     data: serverOption(new SlashCommandBuilder().setName("rcon-log").setDescription("View the last raw RCON messages received from the server (admin only)")
