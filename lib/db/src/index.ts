@@ -674,6 +674,24 @@ export async function removeShopProduct(productId: number): Promise<void> {
   await db.execute({ sql: "DELETE FROM shop_products WHERE id = ?", args: [productId] });
 }
 
+export async function getAllShopProductsByServer(serverId: number): Promise<(ShopProductRow & { category_name: string; category_type: string })[]> {
+  const r = await db.execute({
+    sql: `SELECT sp.*, sc.name AS category_name, sc.category_type
+          FROM shop_products sp
+          JOIN shop_categories sc ON sp.category_id = sc.id
+          WHERE sc.server_id = ?`,
+    args: [serverId]
+  });
+  return r.rows as unknown as (ShopProductRow & { category_name: string; category_type: string })[];
+}
+
+export async function decrementShopStock(productId: number, amount: number): Promise<void> {
+  await db.execute({
+    sql: "UPDATE shop_products SET stock = MAX(0, stock - ?) WHERE id = ? AND stock > 0",
+    args: [amount, productId]
+  });
+}
+
 // ---- raid link queries ----
 
 export async function getRaidLink(serverId: number, ingameName: string): Promise<RaidLinkRow | null> {

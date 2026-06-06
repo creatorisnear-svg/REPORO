@@ -1,6 +1,7 @@
 import type { Interaction } from "discord.js";
 import { commands } from "../commands/registry.js";
 import { handleAvivButton } from "../commands/handlers/setup.js";
+import { handleShopInteraction } from "../commands/handlers/shop.js";
 
 export async function handleInteractionCreate(interaction: Interaction): Promise<void> {
   if (interaction.isAutocomplete()) {
@@ -15,6 +16,17 @@ export async function handleInteractionCreate(interaction: Interaction): Promise
   if (interaction.isButton() && interaction.customId.startsWith("aviv_")) {
     await handleAvivButton(interaction).catch(err => {
       console.error("[Bot] Aviv button error:", err);
+    });
+    return;
+  }
+
+  // Handle all shop interactions (select menus + buttons)
+  if (
+    (interaction.isStringSelectMenu() || interaction.isButton()) &&
+    (interaction.customId.startsWith("shop:") || interaction.customId === "shop:srv")
+  ) {
+    await handleShopInteraction(interaction).catch(err => {
+      console.error("[Bot] Shop interaction error:", err);
     });
     return;
   }
