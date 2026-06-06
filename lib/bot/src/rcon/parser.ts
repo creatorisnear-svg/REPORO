@@ -113,81 +113,115 @@ async function postToChannel(serverId: number, channelType: string, content: str
   } catch { /* channel not accessible */ }
 }
 
-// Attempt to parse a kill event from a raw RCE log line.
-// RCE WebRCON may send kills in several formats depending on server version:
-//   [KILL] killer killed victim with weapon
-//   killer killed victim with weapon          (no prefix, Type may be "Kill" or "Generic")
-//   victim was killed by killer               (passive form, some RCE builds)
-//   victim was killed by weapon               (environmental, no named killer)
-function parseKillLine(raw: string): { killer: string; victim: string; weapon: string } | null {
-  // Format 1: [KILL] killer killed victim with weapon
-  const fmt1 = raw.match(/^\[KILL\]\s+(.+?)\s+killed\s+(.+?)\s+with\s+(.+)$/i);
-  if (fmt1) return { killer: fmt1[1]!.trim(), victim: fmt1[2]!.trim(), weapon: fmt1[3]!.trim() };
+// Strip Steam ID suffixes like [76561198xxx/123456] that RCE appends to player names in logs
+function stripSteamId(name: string): string {
+  return name.replace(/\s*\[[\d]+\/[\d]+\]\s*$/, "").trim();
+}
 
-  // Format 2: killer killed victim with weapon  (no prefix — used when Type="Kill" or bare Generic)
-  const fmt2 = raw.match(/^(.+?)\s+killed\s+(.+?)\s+with\s+(.+)$/i);
-  if (fmt2 && !raw.startsWith("[")) {
-    return { killer: fmt2[1]!.trim(), victim: fmt2[2]!.trim(), weapon: fmt2[3]!.trim() };
+// Attempt to parse a kill event from a raw RCE log line.
+// RCE WebRCON sends kills as Generic text — no [KILL] prefix.
+// Known RCE formats:
+//   PlayerName[sid/uid] was killed by PlayerName[sid/uid] with weapon
+//   PlayerName[sid/uid] killed PlayerName[sid/uid] with weapon
+//   PlayerName[sid/uid] was killed by Fall Damage   (environmental)
+//   PlayerName[sid/uid] committed suicide            (intentional)
+function parseKillLine(raw: string): { killer: string; victim: string; weapon: string } | null {
+  // RCE Format A: victim was killed by killer with weapon  (most common)
+  const fmtA = raw.match(/^(.+?)\s+was killed by\s+(.+?)\s+with\s+(.+)$/i);
+  if (fmtA) {
+    return {
+      victim: stripSteamId(fmtA[1]!),
+      killer: stripSteamId(fmtA[2]!),
+      weapon: fmtA[3]!.trim(),
+    };
   }
 
-  // Format 3: victim was killed by killer with weapon
-  const fmt3 = raw.match(/^(.+?)\s+was killed by\s+(.+?)\s+with\s+(.+)$/i);
-  if (fmt3) return { killer: fmt3[2]!.trim(), victim: fmt3[1]!.trim(), weapon: fmt3[3]!.trim() };
+  // RCE Format B: victim was killed by killer  (no weapon specified)
+  const fmtB = raw.match(/^(.+?)\s+was killed by\s+(.+)$/i);
+  if (fmtB) {
+    const killer = stripSteamId(fmtB[2]!.trim());
+    return {
+      victim: stripSteamId(fmtB[1]!),
+      killer,
+      weapon: killer,
+    };
+  }
 
-  // Format 4: victim was killed by killer  (no weapon)
-  const fmt4 = raw.match(/^(.+?)\s+was killed by\s+(.+)$/i);
-  if (fmt4) return { killer: fmt4[2]!.trim(), victim: fmt4[1]!.trim(), weapon: "unknown" };
+  // RCE Format C: killer killed victim with weapon  (active voice)
+  const fmtC = raw.match(/^(.+?)\s+killed\s+(.+?)\s+with\s+(.+)$/i);
+  if (fmtC) {
+    return {
+      killer: stripSteamId(fmtC[1]!),
+      victim: stripSteamId(fmtC[2]!),
+      weapon: fmtC[3]!.trim(),
+    };
+  }
 
-  // Format 5: victim died (no killer listed — environmental)
-  const fmt5 = raw.match(/^(.+?)\s+died\b/i);
-  if (fmt5 && !raw.startsWith("[")) {
-    const name = fmt5[1]!.trim();
-    return { killer: name, victim: name, weapon: "unknown" };
+  // RCE Format D: victim committed suicide / victim died
+  const fmtD = raw.match(/^(.+?)\s+(?:committed suicide|died)\b/i);
+  if (fmtD) {
+    const name = stripSteamId(fmtD[1]!);
+    return { killer: name, victim: name, weapon: "suicide" };
   }
 
   return null;
 }
 
 async function handleLog(raw: string, serverId: number, type?: string): Promise<void> {
-  const chatMatch = raw.match(/^\[CHAT\]\s+(.+?)\s*:\s*(.+)$/);
-  if (chatMatch) {
-    const [, playerName, message] = chatMatch;
-    await handleChatMessage(serverId, playerName.trim(), message.trim());
+  // RCE sends chat as JSON when Type="Chat"
+  // Shape: { Channel, Message, UserId, Username, Color, Time }
+  if (type === "Chat") {
+    try {
+      const data = JSON.parse(raw) as Record<string, unknown>;
+      const username = String(data["Username"] ?? "").trim();
+      // Skip server/admin broadcast messages (UserId=0 or Username="SERVER")
+      const userId = Number(data["UserId"] ?? 0);
+      if (username && username !== "SERVER" && userId !== 0) {
+        // Message field may be JSON-string encoded ("\"hello\"") — unwrap it
+        const rawMsg = String(data["Message"] ?? "");
+        const message = rawMsg.replace(/^"(.*)"$/s, "$1").replace(/\\"/g, '"').trim();
+        await handleChatMessage(serverId, username, message);
+      }
+    } catch { /* malformed JSON, skip */ }
     return;
   }
 
-  // Kill detection: try explicit [KILL] prefix first, then type-based, then flexible patterns
-  const isKillType = type === "Kill" || type === "kill";
-  const hasKillPrefix = raw.startsWith("[KILL]");
-  const killData = (hasKillPrefix || isKillType) ? parseKillLine(raw) : null;
-  if (killData) {
-    await handleKill(serverId, killData.killer, killData.victim, killData.weapon);
-    return;
-  }
-
-  const joinMatch = raw.match(/^\[JOIN\]\s+(.+?)\s+joined/i);
-  if (joinMatch) {
-    await handleJoin(serverId, joinMatch[1].trim());
-    return;
-  }
-
-  const leaveMatch = raw.match(/^\[LEAVE\]\s+(.+?)\s+left/i);
-  if (leaveMatch) {
-    await handleLeave(serverId, leaveMatch[1].trim());
-    return;
-  }
-
-  if (raw.includes("FREQUENCY_FIRED:")) {
-    const freqMatch = raw.match(/FREQUENCY_FIRED:(\S+)/);
-    if (freqMatch) {
-      await handleRaidAlert(serverId, freqMatch[1]!);
+  // RCE sends kills as Generic text (Type="Generic" or Type="Kill")
+  // Try kill patterns on any message that looks like it could be a kill event
+  if (type === "Kill" || raw.match(/\b(?:killed|died|suicide|was killed)\b/i)) {
+    const killData = parseKillLine(raw);
+    if (killData) {
+      await handleKill(serverId, killData.killer, killData.victim, killData.weapon);
+      return;
     }
   }
 
-  const noteMatch = raw.match(/^\[NOTE\]\s+(.+?)\s*:\s*(.+)$/);
+  // Join events — RCE sends "PlayerName[sid/uid] joined [ip:port]" or "PlayerName[sid/uid] entered the game"
+  const joinMatch = raw.match(/^(.+?)\s+(?:joined\b|has entered the game)/i);
+  if (joinMatch) {
+    await handleJoin(serverId, stripSteamId(joinMatch[1]!));
+    return;
+  }
+
+  // Leave events — RCE sends "PlayerName[sid/uid] disconnecting" or "has left the game"
+  const leaveMatch = raw.match(/^(.+?)\s+(?:disconnecting\b|has left the game)/i);
+  if (leaveMatch) {
+    await handleLeave(serverId, stripSteamId(leaveMatch[1]!));
+    return;
+  }
+
+  // Raid alerts
+  if (raw.includes("FREQUENCY_FIRED:")) {
+    const freqMatch = raw.match(/FREQUENCY_FIRED:(\S+)/);
+    if (freqMatch) await handleRaidAlert(serverId, freqMatch[1]!);
+    return;
+  }
+
+  // Note messaging — check both legacy [NOTE] prefix and RCE Generic note format
+  const noteMatch = raw.match(/^\[NOTE\]\s+(.+?)\s*:\s*(.+)$/)
+    ?? raw.match(/^NOTE:\s+(.+?)\s*:\s*(.+)$/i);
   if (noteMatch) {
-    const [, playerName, noteText] = noteMatch;
-    await handleNoteLog(serverId, playerName.trim(), noteText.trim());
+    await handleNoteLog(serverId, noteMatch[1]!.trim(), noteMatch[2]!.trim());
     return;
   }
 }
