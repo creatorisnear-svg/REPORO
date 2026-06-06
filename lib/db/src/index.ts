@@ -869,6 +869,13 @@ export async function addBounty(
   });
 }
 
+export async function wipeEconomy(serverId: number): Promise<void> {
+  await db.execute({
+    sql: "UPDATE economy SET balance = 0 WHERE server_id = ?",
+    args: [serverId]
+  });
+}
+
 export async function getBountyWithPlacer(serverId: number): Promise<Array<BountyRow & { placer_name: string }>> {
   const bounties = await getActiveBounties(serverId);
   const result = await Promise.all(bounties.map(async b => {

@@ -188,6 +188,14 @@ class RconManager {
     return this.getStatus(serverId) === "connected";
   }
 
+  getConnectedCount(): number {
+    let count = 0;
+    for (const conn of this.connections.values()) {
+      if (conn.isOpen()) count++;
+    }
+    return count;
+  }
+
   async connect(serverId: number, host: string, port: number, password: string): Promise<void> {
     await this.getConnection(serverId, host, port, password);
   }

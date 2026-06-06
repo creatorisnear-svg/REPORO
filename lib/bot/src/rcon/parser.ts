@@ -16,6 +16,58 @@ const tpHomePending = new Map<string, number>(); // ingameName -> timestamp
 const eliteKitPending = new Map<string, number>(); // ingameName -> timestamp
 const combatLocked = new Map<string, number>(); // ingameName -> unlock timestamp
 
+// Single-step elite kit phrase map (kits 1-22)
+const singleStepKits: Record<string, string> = {
+  "I Need Metal Fragments": "elitekit",
+  "I Need Scrap": "elitekit2",
+  "I Need Low Grade Fuel": "elitekit3",
+  "I Need Food": "elitekit4",
+  "Follow Me": "elitekit5",
+  "Help!": "elitekit6",
+  "Nice": "elitekit7",
+  "Sorry": "elitekit8",
+  "Thank You": "elitekit9",
+  "You're Welcome": "elitekit10",
+  "Good Game": "elitekit11",
+  "Watch Out": "elitekit12",
+  "Good Luck": "elitekit13",
+  "Well Played": "elitekit14",
+  "Yes": "elitekit15",
+  "No": "elitekit16",
+  "Retreat!": "elitekit17",
+  "Attack": "elitekit18",
+  "Wait": "elitekit19",
+  "Go Go Go": "elitekit20",
+  "Need Backup": "elitekit21",
+  "On My Way": "elitekit22",
+};
+
+// Two-step elite kit phrase map (kits 23-44, triggered after "I'm out of ammo")
+const twoStepKits: Record<string, string> = {
+  "I Need Wood": "elitekit23",
+  "I Need Stone": "elitekit24",
+  "I Need Scrap": "elitekit25",
+  "I Need Metal Fragments": "elitekit26",
+  "I Need Low Grade Fuel": "elitekit27",
+  "I Need Food": "elitekit28",
+  "Follow Me": "elitekit29",
+  "Help!": "elitekit30",
+  "Nice": "elitekit31",
+  "Sorry": "elitekit32",
+  "Thank You": "elitekit33",
+  "You're Welcome": "elitekit34",
+  "Good Game": "elitekit35",
+  "Watch Out": "elitekit36",
+  "Good Luck": "elitekit37",
+  "Well Played": "elitekit38",
+  "Yes": "elitekit39",
+  "No": "elitekit40",
+  "Attack": "elitekit41",
+  "Wait": "elitekit42",
+  "Go Go Go": "elitekit43",
+  "Need Backup": "elitekit44",
+};
+
 export function initParser(discordClient: DiscordClient): void {
   ctx = { discordClient, guilds: [] };
 
@@ -46,7 +98,6 @@ async function postToChannel(serverId: number, channelType: string, content: str
 }
 
 async function handleLog(raw: string, serverId: number): Promise<void> {
-  // Parse chat messages
   const chatMatch = raw.match(/^\[CHAT\]\s+(.+?)\s*:\s*(.+)$/);
   if (chatMatch) {
     const [, playerName, message] = chatMatch;
@@ -54,7 +105,6 @@ async function handleLog(raw: string, serverId: number): Promise<void> {
     return;
   }
 
-  // Kill feed
   const killMatch = raw.match(/^\[KILL\]\s+(.+?)\s+killed\s+(.+?)\s+with\s+(.+)$/i);
   if (killMatch) {
     const [, killer, victim, weapon] = killMatch;
@@ -62,23 +112,18 @@ async function handleLog(raw: string, serverId: number): Promise<void> {
     return;
   }
 
-  // Player join
   const joinMatch = raw.match(/^\[JOIN\]\s+(.+?)\s+joined/i);
   if (joinMatch) {
-    const playerName = joinMatch[1].trim();
-    await handleJoin(serverId, playerName);
+    await handleJoin(serverId, joinMatch[1].trim());
     return;
   }
 
-  // Player leave
   const leaveMatch = raw.match(/^\[LEAVE\]\s+(.+?)\s+left/i);
   if (leaveMatch) {
-    const playerName = leaveMatch[1].trim();
-    await handleLeave(serverId, playerName);
+    await handleLeave(serverId, leaveMatch[1].trim());
     return;
   }
 
-  // Raid alert frequency
   if (raw.includes("FREQUENCY_FIRED:")) {
     const freqMatch = raw.match(/FREQUENCY_FIRED:(\S+)/);
     if (freqMatch) {
@@ -88,13 +133,12 @@ async function handleLog(raw: string, serverId: number): Promise<void> {
 }
 
 const playerKillStreaks = new Map<string, { count: number; lastReset: number }>();
-const killAntiAbuseMap = new Map<string, number>(); // `${killer}:${victim}` -> timestamp
+const killAntiAbuseMap = new Map<string, number>();
 
 async function handleKill(serverId: number, killer: string, victim: string, weapon: string): Promise<void> {
   const isSuicide = killer === victim;
   const isScientist = killer.toLowerCase().includes("scientist") || victim.toLowerCase().includes("scientist");
 
-  // Kill feed
   const killFeedEnabled = await getConfig(serverId, "KillFeedDiscord") ?? "on";
   if (killFeedEnabled === "on") {
     let msg: string;
@@ -110,7 +154,6 @@ async function handleKill(serverId: number, killer: string, victim: string, weap
 
   if (isSuicide || isScientist) return;
 
-  // Economy kill reward (anti-farm: same victim only once per 30 min)
   const abuseKey = `${killer}:${victim}`;
   const lastKill = killAntiAbuseMap.get(abuseKey);
   if (!lastKill || Date.now() - lastKill > 30 * 60 * 1000) {
@@ -123,7 +166,6 @@ async function handleKill(serverId: number, killer: string, victim: string, weap
     } catch { /* player not linked */ }
   }
 
-  // Kill streaks
   const streak = playerKillStreaks.get(`${serverId}:${killer}`) ?? { count: 0, lastReset: Date.now() };
   streak.count++;
   playerKillStreaks.set(`${serverId}:${killer}`, streak);
@@ -132,7 +174,6 @@ async function handleKill(serverId: number, killer: string, victim: string, weap
     await postToChannel(serverId, "killfeed", `\u{1F525} **${killer}** is on a **${streak.count} kill streak!**`);
   }
 
-  // Bounty system
   const bountyEnabled = await getConfig(serverId, "BountySystem") ?? "off";
   if (bountyEnabled === "on") {
     await handleBountyKill(serverId, killer, victim);
@@ -153,7 +194,6 @@ async function handleBountyKill(serverId: number, killer: string, victim: string
     await postToChannel(serverId, "killfeed", `\u{1F3AF} **${killer}** collected the bounty on **${victim}** and earned ${reward} coins!`);
   }
 
-  // Update or create bounty on killer
   const minKillsStr = await getConfig(serverId, "BountyMinKills") ?? "5";
   const minKills = parseInt(minKillsStr, 10) || 5;
   const killerBounty = await db.getBounty(serverId, killer);
@@ -168,7 +208,6 @@ async function handleBountyKill(serverId: number, killer: string, victim: string
 async function handleJoin(serverId: number, playerName: string): Promise<void> {
   await postToChannel(serverId, "player-feed", `\u{1F7E2} **${playerName}** joined the server`);
 
-  // If player is an active prisoner, send them back
   const isPris = await db.isPrisoner(serverId, playerName);
   if (isPris) {
     const server = await getServerInfo(serverId);
@@ -186,9 +225,6 @@ async function handleJoin(serverId: number, playerName: string): Promise<void> {
 
 async function handleLeave(serverId: number, playerName: string): Promise<void> {
   await postToChannel(serverId, "player-feed", `\u{1F534} **${playerName}** left the server`);
-
-  // ZORP: check if player going offline affects zone status
-  // This is handled by the ZORP timer system in features/zorp.ts
 }
 
 async function handleRaidAlert(serverId: number, frequency: string): Promise<void> {
@@ -208,17 +244,15 @@ async function handleRaidAlert(serverId: number, frequency: string): Promise<voi
   } catch { /* channel not found */ }
 }
 
-// Chat message dispatch
 async function handleChatMessage(serverId: number, playerName: string, message: string): Promise<void> {
   const msg = message.trim();
 
-  // Chat bridge: post to discord
   const bridgeEnabled = await getConfig(serverId, "chatbridge") ?? "off";
   if (bridgeEnabled === "on") {
     await postToChannel(serverId, "chat", `\u{1F3AE} **${playerName}**: ${msg}`);
   }
 
-  // ZORP flow
+  // ZORP flow - must check before single-step kits that share phrases
   if (msg === "Can I build around here?") {
     const existing = await db.getZorpZone(serverId, playerName);
     const key = `${serverId}:${playerName}`;
@@ -244,7 +278,7 @@ async function handleChatMessage(serverId: number, playerName: string, message: 
     }
   }
 
-  // TP HOME flow
+  // TP HOME set trigger
   if (msg === "Can I have a key?") {
     const tpHomeEnabled = await getConfig(serverId, "TPHOME_use") ?? "off";
     if (tpHomeEnabled === "on") {
@@ -265,8 +299,8 @@ async function handleChatMessage(serverId: number, playerName: string, message: 
     tpHomePending.delete(tpHomeKey);
   }
 
-  // Teleport home: Retreat!
-  if (msg === "Retreat!") {
+  // TP HOME: Retreat! - check before kit (only if NOT in ZORP pending)
+  if (msg === "Retreat!" && !zorpState) {
     await handleTpHome(serverId, playerName);
     return;
   }
@@ -283,25 +317,34 @@ async function handleChatMessage(serverId: number, playerName: string, message: 
     return;
   }
 
-  // Elite kit 1 (one-step)
-  if (msg === "I Need Metal Fragments") {
-    await handleKit(serverId, playerName, "elitekit1");
-    return;
-  }
-
-  // Elite kit two-step prefix
+  // Two-step elite kit prefix
   if (msg === "I'm out of ammo") {
     eliteKitPending.set(`${serverId}:${playerName}`, Date.now());
     return;
   }
 
-  // Elite kit two-step second message (kits 23-44)
+  // Two-step elite kit second message (kits 23-44)
   const eliteKey = `${serverId}:${playerName}`;
   if (eliteKitPending.has(eliteKey) && Date.now() - eliteKitPending.get(eliteKey)! < 30_000) {
-    eliteKitPending.delete(eliteKey);
-    // msg is the kit phrase; for now use kit name from config based on phrase
-    await handleKit(serverId, playerName, "elitekit23");
-    return;
+    const twoStepKit = twoStepKits[msg];
+    if (twoStepKit) {
+      eliteKitPending.delete(eliteKey);
+      await handleKit(serverId, playerName, twoStepKit);
+      return;
+    }
+  }
+
+  // Single-step elite kits (1-22)
+  // "Yes" only fires as kit if NOT in ZORP pending state
+  // "Retreat!" only fires as kit if NOT in TPHOME pending state (already returned above)
+  const singleKit = singleStepKits[msg];
+  if (singleKit) {
+    if (msg === "Yes" && zorpState && Date.now() - zorpState.timestamp < 30_000) {
+      // Already handled above by ZORP flow
+    } else {
+      await handleKit(serverId, playerName, singleKit);
+      return;
+    }
   }
 
   // Recycler
@@ -337,11 +380,10 @@ async function handleZorpCreate(serverId: number, playerName: string): Promise<v
   } catch { /* ignore */ }
 
   const existing = await db.getZorpZone(serverId, playerName);
+  await db.upsertZorpZone(serverId, playerName, teamId, zoneId);
   if (existing) {
-    await db.upsertZorpZone(serverId, playerName, teamId, zoneId);
     await postToChannel(serverId, "player-feed", `\u{1F504} **${playerName}**'s ZORP zone has been refreshed`);
   } else {
-    await db.upsertZorpZone(serverId, playerName, teamId, zoneId);
     await postToChannel(serverId, "player-feed", `\u{1F7E2} **${playerName}** created a ZORP zone`);
   }
 }
@@ -373,7 +415,10 @@ async function handleTpHome(serverId: number, playerName: string): Promise<void>
 }
 
 async function handleKit(serverId: number, playerName: string, kitType: string): Promise<void> {
-  const enabledKey = `${kitType}_use` as string;
+  // Map elitekit (first elite) config keys correctly
+  // elitekit -> uses keys elitekit_use, elitekit_time, elitekit_name, list elitelist1
+  // elitekit2 -> uses keys elitekit2_use, elitekit2_time, etc., list elitelist2
+  const enabledKey = `${kitType}_use`;
   const enabled = await getConfig(serverId, enabledKey) ?? "off";
   if (enabled !== "on") return;
 
@@ -382,15 +427,24 @@ async function handleKit(serverId: number, playerName: string, kitType: string):
   const kitName = await getConfig(serverId, kitNameKey) ?? kitType;
   const cooldownHours = parseFloat(await getConfig(serverId, timeKey) ?? "24");
 
-  // Check if on required list (if uselist is on)
+  // Determine list name for uselist check
   const useListKey = `${kitType}_uselist`;
   const uselist = await getConfig(serverId, useListKey) ?? "off";
   if (uselist === "on") {
-    const onList = await db.isOnList(serverId, kitType + "list", playerName);
+    // elitekit -> elitelist1, elitekit2 -> elitelist2, etc.
+    let listName: string;
+    if (kitType === "elitekit") {
+      listName = "elitelist1";
+    } else if (kitType.startsWith("elitekit")) {
+      const num = kitType.replace("elitekit", "");
+      listName = `elitelist${num}`;
+    } else {
+      listName = `${kitType}list`;
+    }
+    const onList = await db.isOnList(serverId, listName, playerName);
     if (!onList) return;
   }
 
-  // Check cooldown
   const lastClaim = await db.getLastKitClaim(serverId, playerName, kitType);
   if (lastClaim) {
     const cooldownMs = cooldownHours * 3600 * 1000;
@@ -449,7 +503,6 @@ async function handleDirectionalTp(serverId: number, playerName: string, tpConfi
     if (!onList) return;
   }
 
-  // Combat lock check
   const combatEnabled = await getConfig(serverId, "combatlock_use") ?? "off";
   if (combatEnabled === "on") {
     const lockedUntil = combatLocked.get(`${serverId}:${playerName}`);
@@ -482,7 +535,6 @@ async function handleDirectionalTp(serverId: number, playerName: string, tpConfi
   } catch { /* ignore */ }
 }
 
-// Combat lock: called when player takes damage
 export function setCombatLock(serverId: number, playerName: string, seconds: number): void {
   combatLocked.set(`${serverId}:${playerName}`, Date.now() + seconds * 1000);
 }

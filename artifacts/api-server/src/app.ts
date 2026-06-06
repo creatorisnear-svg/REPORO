@@ -1,10 +1,11 @@
 import express, { type Express } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
+import session from "express-session";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import router from "./routes";
-import { logger } from "./lib/logger";
+import router from "./routes/index.js";
+import { logger } from "./lib/logger.js";
 
 const app: Express = express();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -14,22 +15,27 @@ app.use(
     logger,
     serializers: {
       req(req) {
-        return {
-          id: req.id,
-          method: req.method,
-          url: req.url?.split("?")[0],
-        };
+        return { id: req.id, method: req.method, url: req.url?.split("?")[0] };
       },
       res(res) {
-        return {
-          statusCode: res.statusCode,
-        };
+        return { statusCode: res.statusCode };
       },
     },
   }),
 );
 
 app.use(cors());
+
+// Session middleware for Discord OAuth
+app.use(session({
+  secret: process.env["SESSION_SECRET"] ?? "aviv-bot-default-secret-change-me",
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env["NODE_ENV"] === "production",
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+  },
+}));
 
 // Raw body for Stripe webhooks must come before json()
 app.use("/api/stripe/webhook", express.raw({ type: "application/json" }));
@@ -46,6 +52,8 @@ app.get("/pricing", (_req, res) => res.sendFile(path.join(publicDir, "pricing.ht
 app.get("/docs", (_req, res) => res.sendFile(path.join(publicDir, "docs.html")));
 app.get("/status", (_req, res) => res.sendFile(path.join(publicDir, "status.html")));
 app.get("/success", (_req, res) => res.sendFile(path.join(publicDir, "setup.html")));
+app.get("/setup-wizard", (_req, res) => res.sendFile(path.join(publicDir, "setup-wizard.html")));
+app.get("/dashboard", (_req, res) => res.sendFile(path.join(publicDir, "dashboard.html")));
 
 app.use("/api", router);
 

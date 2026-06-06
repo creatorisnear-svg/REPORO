@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard - Aviv Bot</title>
+  <link rel="stylesheet" href="/style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    .dash-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.25rem; margin-top: 1.5rem; }
+    .server-card { background: var(--surface); border: 1px solid var(--surface2); border-radius: 14px; padding: 1.5rem; }
+    .server-card h3 { margin: 0 0 0.5rem; font-size: 1.1rem; }
+    .server-meta { font-size: 0.85rem; color: var(--muted); margin-bottom: 1rem; }
+    .stat-row { display: flex; gap: 1.5rem; margin-bottom: 1rem; }
+    .stat { text-align: center; }
+    .stat .val { font-size: 1.5rem; font-weight: 800; color: var(--accent); }
+    .stat .lbl { font-size: 0.75rem; color: var(--muted); }
+    .rcon-badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 0.78rem; font-weight: 600; }
+    .rcon-badge.on { background: rgba(39,174,96,0.15); color: var(--success); }
+    .rcon-badge.off { background: rgba(231,76,60,0.12); color: var(--danger, #e74c3c); }
+    .user-bar { display: flex; align-items: center; gap: 1rem; margin-bottom: 2rem; padding: 1rem 1.25rem; background: var(--surface); border-radius: 12px; }
+    .avatar { width: 40px; height: 40px; border-radius: 50%; }
+    .user-info { flex: 1; }
+    .user-name { font-weight: 700; }
+    .user-sub { font-size: 0.8rem; color: var(--muted); }
+    .guild-select { background: var(--surface2); color: var(--text); border: none; border-radius: 8px; padding: 0.5rem 0.75rem; font-size: 0.9rem; cursor: pointer; }
+    .section-label { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 1.5rem 0 0.75rem; }
+    #loading { text-align: center; padding: 4rem; color: var(--muted); }
+    #error-msg { text-align: center; padding: 4rem; color: var(--danger, #e74c3c); display: none; }
+  </style>
+</head>
+<body>
+<nav>
+  <div class="nav-logo">&#9889; Aviv Bot</div>
+  <ul class="nav-links">
+    <li><a href="/">Home</a></li>
+    <li><a href="/pricing">Pricing</a></li>
+    <li><a href="/docs">Docs</a></li>
+    <li><a href="/status">Status</a></li>
+  </ul>
+  <a href="/auth/logout" class="btn btn-outline">Log Out</a>
+</nav>
+
+<div class="container" style="max-width:960px; padding:2rem 1.5rem;">
+  <div id="loading">Loading dashboard...</div>
+  <div id="error-msg">Could not load dashboard. <a href="/auth/discord">Log in again</a></div>
+
+  <div id="dash-content" style="display:none;">
+    <div class="user-bar">
+      <img class="avatar" id="user-avatar" src="" alt="avatar" onerror="this.src=''" />
+      <div class="user-info">
+        <div class="user-name" id="user-name">...</div>
+        <div class="user-sub">Logged in with Discord</div>
+      </div>
+      <div>
+        <label style="font-size:0.82rem; color:var(--muted); margin-right:0.5rem;">Server:</label>
+        <select class="guild-select" id="guild-select" onchange="loadGuildDashboard(this.value)">
+          <option value="">Select a server...</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="guild-dash" style="display:none;">
+      <div class="section-label">Connected Rust Servers</div>
+      <div class="dash-grid" id="servers-grid"></div>
+
+      <div class="section-label">Quick Actions</div>
+      <div style="display:flex; gap:0.75rem; flex-wrap:wrap;">
+        <a href="/docs#shop" class="btn btn-outline">Manage Shop</a>
+        <a href="/docs#kits" class="btn btn-outline">Manage Kits</a>
+        <a href="/docs#economy" class="btn btn-outline">Economy Docs</a>
+        <a href="/setup-wizard" class="btn btn-outline">Add Another Server</a>
+      </div>
+
+      <div class="section-label">Leaderboard</div>
+      <div id="leaderboard-wrap" style="background:var(--surface); border-radius:12px; padding:1.25rem; border:1px solid var(--surface2);">
+        <p style="color:var(--muted); font-size:0.9rem;">Select a server above to see the leaderboard.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <p>Aviv Bot &copy; 2025 - Built for Rust Console Edition communities</p>
+</footer>
+
+<script>
+let currentUser = null;
+let currentGuildId = null;
+
+async function init() {
+  try {
+    const meRes = await fetch('/api/auth/me');
+    if (!meRes.ok) {
+      window.location.href = '/auth/discord';
+      return;
+    }
+    currentUser = await meRes.json();
+
+    document.getElementById('user-name').textContent = currentUser.username;
+    if (currentUser.avatar) {
+      document.getElementById('user-avatar').src =
+        `https://cdn.discordapp.com/avatars/${currentUser.id}/${currentUser.avatar}.png?size=64`;
+    }
+
+    const select = document.getElementById('guild-select');
+    if (Array.isArray(currentUser.guilds)) {
+      for (const g of currentUser.guilds) {
+        if (!((g.permissions & 0x8) === 0x8 || (g.permissions & 0x20) === 0x20)) continue;
+        const opt = document.createElement('option');
+        opt.value = g.id;
+        opt.textContent = g.name;
+        select.appendChild(opt);
+      }
+    }
+
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('dash-content').style.display = 'block';
+  } catch {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('error-msg').style.display = 'block';
+  }
+}
+
+async function loadGuildDashboard(guildId) {
+  if (!guildId) {
+    document.getElementById('guild-dash').style.display = 'none';
+    return;
+  }
+  currentGuildId = guildId;
+  document.getElementById('guild-dash').style.display = 'block';
+
+  // Load servers
+  try {
+    const res = await fetch('/api/dashboard/' + guildId);
+    const data = await res.json();
+    renderServers(data.servers ?? [], guildId);
+  } catch {
+    document.getElementById('servers-grid').innerHTML = '<p style="color:var(--muted)">Could not load servers.</p>';
+  }
+}
+
+function renderServers(servers, guildId) {
+  const grid = document.getElementById('servers-grid');
+  if (servers.length === 0) {
+    grid.innerHTML = '<p style="color:var(--muted)">No servers configured. Use <code>/setup</code> in Discord then <code>/add-server</code>.</p>';
+    return;
+  }
+  grid.innerHTML = servers.map(s => `
+    <div class="server-card">
+      <h3>${escHtml(s.server_label || 'Server ' + s.server_number)}</h3>
+      <div class="server-meta">${escHtml(s.rcon_host || 'No RCON')}:${s.rcon_port || ''}</div>
+      <div style="margin-bottom:0.75rem;">
+        <span class="rcon-badge ${s.rconConnected ? 'on' : 'off'}">${s.rconConnected ? 'RCON Connected' : 'RCON Offline'}</span>
+      </div>
+      <button class="btn btn-outline" style="font-size:0.82rem; padding:0.4rem 0.85rem;"
+        onclick="loadLeaderboard('${guildId}', ${s.server_number})">View Leaderboard</button>
+    </div>
+  `).join('');
+}
+
+async function loadLeaderboard(guildId, serverNum) {
+  const wrap = document.getElementById('leaderboard-wrap');
+  wrap.innerHTML = '<p style="color:var(--muted)">Loading...</p>';
+  try {
+    const res = await fetch(`/api/dashboard/${guildId}/server/${serverNum}/leaderboard`);
+    const data = await res.json();
+    const rows = (data.leaderboard ?? []).map((e, i) =>
+      `<tr><td style="color:var(--muted)">#${i + 1}</td><td>${escHtml(e.ingame_name)}</td><td style="color:var(--accent); font-weight:700;">${e.balance}</td></tr>`
+    ).join('');
+    wrap.innerHTML = rows.length
+      ? `<table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+           <thead><tr><th style="text-align:left;color:var(--muted);font-size:0.78rem;padding-bottom:0.5rem;">#</th><th style="text-align:left;color:var(--muted);font-size:0.78rem;">Player</th><th style="text-align:left;color:var(--muted);font-size:0.78rem;">Balance</th></tr></thead>
+           <tbody>${rows}</tbody></table>`
+      : '<p style="color:var(--muted)">No economy data yet.</p>';
+  } catch {
+    wrap.innerHTML = '<p style="color:var(--muted)">Could not load leaderboard.</p>';
+  }
+}
+
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+init();
+</script>
+</body>
+</html>

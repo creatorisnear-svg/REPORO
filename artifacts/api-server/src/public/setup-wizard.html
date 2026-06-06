@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Setup - Aviv Bot</title>
+  <link rel="stylesheet" href="/style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    .wizard { max-width: 640px; margin: 4rem auto; padding: 0 1.5rem; }
+    .step { display: none; }
+    .step.active { display: block; }
+    .step-indicator { display: flex; gap: 0.5rem; margin-bottom: 2rem; align-items: center; }
+    .step-dot { width: 32px; height: 32px; border-radius: 50%; background: var(--surface2); color: var(--muted); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85rem; }
+    .step-dot.active { background: var(--accent); color: #fff; }
+    .step-dot.done { background: var(--success); color: #fff; }
+    .step-line { flex: 1; height: 2px; background: var(--surface2); }
+    .form-group { margin-bottom: 1.25rem; }
+    .form-group label { display: block; font-weight: 600; margin-bottom: 0.4rem; font-size: 0.9rem; color: var(--text); }
+    .form-group input { width: 100%; padding: 0.65rem 0.9rem; border-radius: 8px; border: 1px solid var(--surface2); background: var(--surface2); color: var(--text); font-size: 0.95rem; box-sizing: border-box; }
+    .form-group input:focus { outline: none; border-color: var(--accent); }
+    .error-msg { color: var(--danger, #e74c3c); font-size: 0.88rem; margin-top: 0.4rem; display: none; }
+    .success-box { background: rgba(39, 174, 96, 0.12); border: 1px solid var(--success); border-radius: 12px; padding: 2rem; text-align: center; }
+    .info-box { background: var(--surface2); border-radius: 10px; padding: 1.25rem; margin-bottom: 1rem; font-size: 0.9rem; line-height: 1.6; }
+    .info-box b { display: block; margin-bottom: 0.4rem; color: var(--accent); }
+  </style>
+</head>
+<body>
+<nav>
+  <div class="nav-logo">&#9889; Aviv Bot</div>
+  <ul class="nav-links">
+    <li><a href="/">Home</a></li>
+    <li><a href="/pricing">Pricing</a></li>
+    <li><a href="/docs">Docs</a></li>
+    <li><a href="/status">Status</a></li>
+  </ul>
+</nav>
+
+<div class="wizard">
+  <h2 style="margin-bottom:0.5rem;">Set Up Aviv Bot</h2>
+  <p style="color:var(--muted); margin-bottom:2rem;">Follow the steps below to connect Aviv Bot to your server.</p>
+
+  <div class="step-indicator">
+    <div class="step-dot active" id="dot-1">1</div>
+    <div class="step-line"></div>
+    <div class="step-dot" id="dot-2">2</div>
+    <div class="step-line"></div>
+    <div class="step-dot" id="dot-3">3</div>
+  </div>
+
+  <!-- Step 1: Have you purchased? -->
+  <div class="step active" id="step-1">
+    <h3>Have you purchased Aviv Bot?</h3>
+    <p style="color:var(--muted); margin-bottom:1.5rem;">You need an active subscription to continue setup.</p>
+    <div style="display:flex; gap:1rem; flex-wrap:wrap;">
+      <button class="btn btn-primary btn-lg" onclick="goToStep(2)">Yes, I have a subscription</button>
+      <a href="/pricing" class="btn btn-outline btn-lg">No, buy Aviv Bot</a>
+    </div>
+  </div>
+
+  <!-- Step 2: Server access instructions -->
+  <div class="step" id="step-2">
+    <h3>Grant Bot Access to Your Server Host</h3>
+    <p style="color:var(--muted); margin-bottom:1.5rem;">Before connecting, you need to allow Aviv Bot to access your Rust server's RCON.</p>
+
+    <div class="info-box">
+      <b>GPortal</b>
+      Go to your GPortal dashboard &rarr; <strong>Permissions</strong> &rarr; add <code>avivbot</code> as a user with RCON access.
+    </div>
+
+    <div class="info-box">
+      <b>Nitrado</b>
+      Go to your Nitrado dashboard &rarr; <strong>Guest Access Rights</strong> &rarr; add <code>avivbot</code>.
+    </div>
+
+    <div class="info-box">
+      <b>Other Hosts</b>
+      Enable WebRCON on your Rust server. You will need your <strong>RCON IP</strong>, <strong>port</strong> (usually 28016), and <strong>RCON password</strong>. Check your host's control panel for these details.
+    </div>
+
+    <div style="display:flex; gap:1rem; margin-top:1.5rem;">
+      <button class="btn btn-outline" onclick="goToStep(1)">Back</button>
+      <button class="btn btn-primary" onclick="goToStep(3)">Next: Connect Your Server</button>
+    </div>
+  </div>
+
+  <!-- Step 3: Connection form -->
+  <div class="step" id="step-3">
+    <h3>Connect Your Discord &amp; Rust Server</h3>
+    <p style="color:var(--muted); margin-bottom:1.5rem;">Enter your details below. Aviv Bot will join your Discord and connect to your server.</p>
+
+    <div class="form-group">
+      <label>Email address (used at purchase)</label>
+      <input type="email" id="setup-email" placeholder="you@example.com" />
+      <div class="error-msg" id="email-error">No subscription found for this email.</div>
+    </div>
+
+    <div class="form-group">
+      <label>Discord Server ID</label>
+      <input type="text" id="setup-guild-id" placeholder="Your Discord server ID" />
+      <div style="font-size:0.8rem; color:var(--muted); margin-top:0.3rem;">Enable Developer Mode in Discord, then right-click your server icon &rarr; Copy ID.</div>
+    </div>
+
+    <div class="form-group">
+      <label>RCON Host / IP</label>
+      <input type="text" id="setup-rcon-host" placeholder="123.45.67.89" />
+    </div>
+
+    <div class="form-group">
+      <label>RCON Port</label>
+      <input type="number" id="setup-rcon-port" value="28016" />
+    </div>
+
+    <div class="form-group">
+      <label>RCON Password</label>
+      <input type="password" id="setup-rcon-password" placeholder="Your RCON password" />
+    </div>
+
+    <div class="error-msg" id="form-error" style="display:none; margin-bottom:1rem;">An error occurred. Please try again.</div>
+
+    <div style="display:flex; gap:1rem;">
+      <button class="btn btn-outline" onclick="goToStep(2)">Back</button>
+      <button class="btn btn-primary" id="submit-btn" onclick="submitSetup()">Connect Server</button>
+    </div>
+  </div>
+
+  <!-- Success -->
+  <div class="step" id="step-success">
+    <div class="success-box">
+      <div style="font-size:3rem; margin-bottom:1rem;">&#10003;</div>
+      <h3 style="margin-bottom:0.5rem;">Aviv Bot is being set up!</h3>
+      <p style="color:var(--muted);">It will join your Discord server shortly. Run <code>/setup</code> in Discord to finish configuration.</p>
+      <a href="/docs" class="btn btn-primary" style="margin-top:1.5rem; display:inline-block;">Read the Docs</a>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <p>Aviv Bot &copy; 2025 - Built for Rust Console Edition communities</p>
+</footer>
+
+<script>
+function goToStep(n) {
+  document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+  document.getElementById('step-' + n)?.classList.add('active');
+  for (let i = 1; i <= 3; i++) {
+    const dot = document.getElementById('dot-' + i);
+    if (!dot) continue;
+    dot.classList.remove('active', 'done');
+    if (i < n) dot.classList.add('done');
+    else if (i === n) dot.classList.add('active');
+  }
+}
+
+async function submitSetup() {
+  const email = document.getElementById('setup-email').value.trim();
+  const guildId = document.getElementById('setup-guild-id').value.trim();
+  const rconHost = document.getElementById('setup-rcon-host').value.trim();
+  const rconPort = parseInt(document.getElementById('setup-rcon-port').value, 10);
+  const rconPassword = document.getElementById('setup-rcon-password').value;
+
+  document.getElementById('email-error').style.display = 'none';
+  document.getElementById('form-error').style.display = 'none';
+
+  if (!email || !guildId || !rconHost || !rconPassword) {
+    document.getElementById('form-error').textContent = 'Please fill in all required fields.';
+    document.getElementById('form-error').style.display = 'block';
+    return;
+  }
+
+  const btn = document.getElementById('submit-btn');
+  btn.disabled = true;
+  btn.textContent = 'Verifying...';
+
+  // Step 1: verify email
+  try {
+    const verifyRes = await fetch('/api/setup/verify-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    const verifyData = await verifyRes.json();
+    if (!verifyData.valid) {
+      document.getElementById('email-error').style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = 'Connect Server';
+      return;
+    }
+  } catch {
+    document.getElementById('form-error').textContent = 'Could not verify email. Please try again.';
+    document.getElementById('form-error').style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = 'Connect Server';
+    return;
+  }
+
+  btn.textContent = 'Connecting...';
+
+  // Step 2: submit server
+  try {
+    const res = await fetch('/api/setup/' + encodeURIComponent(guildId) + '/server', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, rconHost, rconPort, rconPassword, serverNumber: 1, label: 'Server 1' }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      document.getElementById('form-error').textContent = data.error || 'Setup failed. Please try again.';
+      document.getElementById('form-error').style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = 'Connect Server';
+      return;
+    }
+    // Success
+    document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+    document.getElementById('step-success').classList.add('active');
+  } catch {
+    document.getElementById('form-error').textContent = 'Network error. Please try again.';
+    document.getElementById('form-error').style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = 'Connect Server';
+  }
+}
+</script>
+</body>
+</html>

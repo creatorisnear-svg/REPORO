@@ -25,19 +25,23 @@
 
   <div class="status-grid">
     <div class="status-item">
-      <span><span class="status-dot"></span>Discord Bot Gateway</span>
-      <span id="bot-status" style="color:var(--success)">Checking...</span>
+      <span><span class="status-dot" id="bot-dot"></span>Discord Bot Gateway</span>
+      <span id="bot-status" style="color:var(--muted)">Checking...</span>
     </div>
     <div class="status-item">
-      <span><span class="status-dot"></span>API Server</span>
+      <span><span class="status-dot" style="background:var(--success)"></span>API Server</span>
       <span style="color:var(--success)">Operational</span>
     </div>
     <div class="status-item">
-      <span><span class="status-dot"></span>Database</span>
-      <span id="db-status" style="color:var(--success)">Checking...</span>
+      <span><span class="status-dot" id="rcon-dot"></span>Connected Servers</span>
+      <span id="rcon-status" style="color:var(--muted)">Checking...</span>
     </div>
     <div class="status-item">
-      <span><span class="status-dot"></span>Stripe Payments</span>
+      <span><span class="status-dot" id="uptime-dot"></span>Uptime</span>
+      <span id="uptime-status" style="color:var(--muted)">Checking...</span>
+    </div>
+    <div class="status-item">
+      <span><span class="status-dot" id="stripe-dot" style="background:var(--muted)"></span>Stripe Payments</span>
       <span id="stripe-status" style="color:var(--muted)">Not Configured</span>
     </div>
   </div>
@@ -48,13 +52,42 @@
 </footer>
 
 <script>
-fetch('/api/healthz').then(r => r.json()).then(d => {
-  document.getElementById('bot-status').textContent = d.ok ? 'Operational' : 'Degraded';
-  document.getElementById('db-status').textContent = 'Operational';
-}).catch(() => {
-  document.getElementById('bot-status').textContent = 'Unknown';
-  document.getElementById('db-status').textContent = 'Unknown';
-});
+function formatUptime(seconds) {
+  if (seconds < 60) return seconds + 's';
+  if (seconds < 3600) return Math.floor(seconds / 60) + 'm ' + (seconds % 60) + 's';
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  return h + 'h ' + m + 'm';
+}
+
+fetch('/api/health')
+  .then(r => r.json())
+  .then(d => {
+    const ok = d.status === 'ok';
+    document.getElementById('bot-dot').style.background = ok ? 'var(--success)' : 'var(--danger)';
+    document.getElementById('bot-status').textContent = ok ? 'Operational' : 'Degraded';
+    document.getElementById('bot-status').style.color = ok ? 'var(--success)' : 'var(--danger)';
+
+    const servers = d.connectedServers ?? 0;
+    document.getElementById('rcon-dot').style.background = servers > 0 ? 'var(--success)' : 'var(--muted)';
+    document.getElementById('rcon-status').textContent = servers + ' server' + (servers === 1 ? '' : 's') + ' connected';
+    document.getElementById('rcon-status').style.color = servers > 0 ? 'var(--success)' : 'var(--muted)';
+
+    document.getElementById('uptime-dot').style.background = 'var(--success)';
+    document.getElementById('uptime-status').textContent = formatUptime(d.uptime ?? 0);
+    document.getElementById('uptime-status').style.color = 'var(--success)';
+
+    if (d.stripeConfigured) {
+      document.getElementById('stripe-dot').style.background = 'var(--success)';
+      document.getElementById('stripe-status').textContent = 'Operational';
+      document.getElementById('stripe-status').style.color = 'var(--success)';
+    }
+  })
+  .catch(() => {
+    document.getElementById('bot-dot').style.background = 'var(--danger)';
+    document.getElementById('bot-status').textContent = 'Unreachable';
+    document.getElementById('bot-status').style.color = 'var(--danger)';
+  });
 </script>
 </body>
 </html>

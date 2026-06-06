@@ -3,6 +3,8 @@ import { REST, Routes } from "discord.js";
 import { commands } from "../commands/registry.js";
 import { startScheduler } from "../features/scheduler.js";
 import { updatePlayerCountChannels } from "../features/playercount.js";
+import { runZorpExpiryCheck } from "../features/zorp.js";
+import { runPrisonReleaseCheck, runPrisonKeepCheck } from "../features/prison.js";
 
 export async function handleReady(client: Client<true>): Promise<void> {
   console.info(`[Bot] Logged in as ${client.user.tag}`);
@@ -25,9 +27,31 @@ export async function handleReady(client: Client<true>): Promise<void> {
     console.error("[Bot] Failed to register commands:", err);
   }
 
+  // Start scheduled message loop
   startScheduler(client);
 
+  // Player count voice channel - every 2 minutes
   setInterval(() => {
     updatePlayerCountChannels(client).catch(e => console.error("[PlayerCount]", e));
+  }, 2 * 60_000);
+
+  // ZORP expiry check - every 5 minutes
+  setInterval(() => {
+    runZorpExpiryCheck(client).catch(e => console.error("[ZORP]", e));
   }, 5 * 60_000);
+
+  // Prison auto-release - every 1 minute
+  setInterval(() => {
+    runPrisonReleaseCheck(client).catch(e => console.error("[Prison]", e));
+  }, 60_000);
+
+  // Prison keep-sending-back - every 30 seconds
+  setInterval(() => {
+    runPrisonKeepCheck(client).catch(e => console.error("[PrisonKeep]", e));
+  }, 30_000);
+
+  // Run initial checks
+  runZorpExpiryCheck(client).catch(() => null);
+  runPrisonReleaseCheck(client).catch(() => null);
+  updatePlayerCountChannels(client).catch(() => null);
 }

@@ -1,5 +1,6 @@
 import type { Interaction } from "discord.js";
 import { commands } from "../commands/registry.js";
+import { handleAvivButton } from "../commands/handlers/setup.js";
 
 export async function handleInteractionCreate(interaction: Interaction): Promise<void> {
   if (interaction.isAutocomplete()) {
@@ -7,6 +8,14 @@ export async function handleInteractionCreate(interaction: Interaction): Promise
     if (cmd?.autocomplete) {
       await cmd.autocomplete(interaction);
     }
+    return;
+  }
+
+  // Handle /aviv panel category buttons
+  if (interaction.isButton() && interaction.customId.startsWith("aviv_")) {
+    await handleAvivButton(interaction).catch(err => {
+      console.error("[Bot] Aviv button error:", err);
+    });
     return;
   }
 

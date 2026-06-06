@@ -57,8 +57,57 @@ Rust Console Edition server owners install Aviv Bot, subscribe via Stripe, then 
 - Schema migrations run automatically on server start via `initDatabase()`
 - `server_label` is the name field on ServerRow (not `name`)
 
+## Koyeb Deployment Setup
+
+Aviv Bot is designed to run on Koyeb via GitHub. Follow these steps to go live:
+
+### 1. Push code to GitHub
+Create a GitHub repo and push this project to the `main` branch.
+
+### 2. Create a Turso database
+- Sign up at https://turso.tech
+- Create a new database and get your `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN`
+
+### 3. Create a Discord Application
+- Go to https://discord.com/developers/applications
+- Create a new application, add a Bot user
+- Copy your `DISCORD_TOKEN` and `DISCORD_CLIENT_ID`
+- Under OAuth2, add your Koyeb app URL as a redirect: `https://yourapp.koyeb.app/auth/callback`
+- Copy your `DISCORD_CLIENT_SECRET`
+- Invite the bot to your Discord server with the bot invite URL (scopes: `bot`, `applications.commands`)
+
+### 4. Set up Stripe (optional, for subscriptions)
+- Create price IDs for Basic, Pro, and Enterprise plans
+- Copy `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_BASIC`, `STRIPE_PRICE_PRO`, `STRIPE_PRICE_ENTERPRISE`
+- Add a webhook endpoint pointing to `https://yourapp.koyeb.app/api/stripe/webhook`
+
+### 5. Deploy on Koyeb
+- Connect your GitHub repo to Koyeb
+- Set the build command: `pnpm install && pnpm --filter @workspace/api-server run build`
+- Set the run command: `node --enable-source-maps ./artifacts/api-server/dist/index.mjs`
+- Set the port to `8080`
+- Add all environment variables from `.env.example`
+- Set `DISCORD_REDIRECT_URI` to `https://yourapp.koyeb.app/auth/callback`
+- Set `SESSION_SECRET` to a long random string
+- Deploy
+
+### 6. In-Discord setup
+Once the bot is online:
+1. In your Discord server, run `/setup` to create roles and channels
+2. Run `/add-server host:<ip> port:28016 password:<rconpass>` to connect your Rust server
+3. Set up features with `/set` or `/configs`
+
+### URL Reference (replace yourapp with your Koyeb app name)
+- Website: `https://yourapp.koyeb.app/`
+- Pricing: `https://yourapp.koyeb.app/pricing`
+- Setup wizard: `https://yourapp.koyeb.app/setup-wizard`
+- Dashboard: `https://yourapp.koyeb.app/dashboard`
+- Status: `https://yourapp.koyeb.app/status`
+- API health: `https://yourapp.koyeb.app/api/health`
+- Stripe webhook: `https://yourapp.koyeb.app/api/stripe/webhook`
+
 ## Pointers
 
 - See `.env.example` for all required environment variables
-- See `lib/bot/src/commands/registry.ts` for the full slash command list (~50 commands)
+- See `lib/bot/src/commands/registry.ts` for the full slash command list (~51 commands)
 - See `.local/skills/pnpm-workspace` for workspace structure details

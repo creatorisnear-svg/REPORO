@@ -1,5 +1,5 @@
-import type { ChatInputCommandInteraction } from "discord.js";
-import { PermissionFlagsBits, ChannelType, EmbedBuilder } from "discord.js";
+import type { ChatInputCommandInteraction, ButtonInteraction } from "discord.js";
+import { PermissionFlagsBits, ChannelType, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import * as db from "@workspace/db";
 import { rconManager } from "../../rcon/manager.js";
 import { getServerForInteraction, requireRole } from "./utils.js";
@@ -15,7 +15,6 @@ export async function handleSetup(interaction: ChatInputCommandInteraction): Pro
   const guild = interaction.guild;
   const lines: string[] = [];
 
-  // Create roles
   const roleNames = ["avivadmin", "avivmod", "avivlinked"];
   for (const name of roleNames) {
     const existing = guild.roles.cache.find(r => r.name === name);
@@ -27,7 +26,6 @@ export async function handleSetup(interaction: ChatInputCommandInteraction): Pro
     }
   }
 
-  // Create channels
   const textChannels = [
     "aviv-killfeed", "aviv-player-feed", "aviv-raids", "aviv-chat",
     "aviv-events", "aviv-logs", "aviv-announcements", "aviv-errors", "aviv-cmd-logs"
@@ -46,20 +44,22 @@ export async function handleSetup(interaction: ChatInputCommandInteraction): Pro
     }
   }
 
-  // Create voice channel for player count
   const voiceName = "| Server 1 0 / 0";
   const existingVoice = guild.channels.cache.find(c => c.name.startsWith("| Server 1"));
   if (!existingVoice) {
-    await guild.channels.create({ name: voiceName, type: ChannelType.GuildVoice, reason: "Aviv Bot setup" });
+    const vc = await guild.channels.create({ name: voiceName, type: ChannelType.GuildVoice, reason: "Aviv Bot setup" });
     lines.push("Created voice channel: player count");
+    // Save to channels table when we have a server
+    const servers = await db.getServersByGuild(guild.id);
+    if (servers.length > 0) {
+      await db.setChannel(servers[0].id, "playercount", vc.id);
+    }
   }
 
-  // Check if server already in DB
   const servers = await db.getServersByGuild(guild.id);
   if (servers.length === 0) {
     lines.push("No server configured yet. Use /add-server to add your Rust server RCON details.");
   } else {
-    // Save channel assignments
     const serverId = servers[0].id;
     const channelMap: Record<string, string> = {
       "killfeed": "aviv-killfeed",
@@ -101,8 +101,6 @@ export async function handleAddServer(interaction: ChatInputCommandInteraction):
   const label = interaction.options.getString("label") ?? "Server 1";
   const serverNum = interaction.options.getInteger("server") ?? 1;
 
-  // Verify customer exists
-  // For setup, we allow any admin to add server (we trust the guild admin)
   const email = `discord_${interaction.guild.id}@avivbot.internal`;
   let customer = await db.getCustomerByEmail(email);
   if (!customer) {
@@ -120,7 +118,6 @@ export async function handleAddServer(interaction: ChatInputCommandInteraction):
     serverNumber: serverNum,
   });
 
-  // Test RCON connection
   try {
     await rconManager.sendCommand(serverId, host, port, password, "status");
     await interaction.editReply({ content: `Server ${serverNum} added and RCON connection verified. Server ID: ${serverId}` });
@@ -164,6 +161,37 @@ export async function handleDiag(interaction: ChatInputCommandInteraction): Prom
   await interaction.editReply({ embeds: [embed] });
 }
 
+const CATEGORY_CONFIGS: Record<string, { label: string; keys: string[] }> = {
+  kits: {
+    label: "Kits Settings",
+    keys: ["freekit_use","freekit_time","freekit_name","vipkit_use","vipkit_time","vipkit_name","elitekit_use","elitekit_time","recyclers_use","recyclers_time","recyclers_uselist"],
+  },
+  economy: {
+    label: "Economy Settings",
+    keys: ["currency_name","player_kill_points","scientist_kill_points","daily_min","daily_max"],
+  },
+  shop: {
+    label: "Shop Settings",
+    keys: ["shop_max_daily_spend"],
+  },
+  zorp: {
+    label: "ZORP Settings",
+    keys: ["zorp","zorptime","zorpExpiryTime","zorpallowlist"],
+  },
+  teleport: {
+    label: "Teleport Settings",
+    keys: ["TPN_use","TPN_time","TPNE_use","TPE_use","TPSE_use","TPS_use","TPSW_use","TPW_use","TPNW_use","TPHOME_use","TPHOME_time"],
+  },
+  killfeed: {
+    label: "Kill Feed Settings",
+    keys: ["KillFeedDiscord","KillFeedGame","KillFeedKD","MiscKills","ScientistKiller","ScientistVictim"],
+  },
+  moderation: {
+    label: "Moderation Settings",
+    keys: ["BountySystem","BountyReward","BountyMinKills","combatlock_use","combatlock_time","notemessaging"],
+  },
+};
+
 export async function handleAviv(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!await requireRole(interaction, "avivadmin")) return;
   if (!interaction.guild) return;
@@ -175,13 +203,60 @@ export async function handleAviv(interaction: ChatInputCommandInteraction): Prom
     return;
   }
 
+  const server = servers[0];
+  const statusLine = servers.map(s => `Server ${s.server_number}: ${s.server_label} (${rconManager.getStatus(s.id)})`).join("\n");
+
   const embed = new EmbedBuilder()
     .setTitle("Aviv Bot Control Panel")
     .setColor(0x5865f2)
+    .setDescription("Select a category below to view current settings. Use `/set [config] [value]` to change any setting.")
     .addFields(
-      { name: "Servers", value: servers.map(s => `Server ${s.server_number}: ${s.server_label} (${rconManager.getStatus(s.id)})`).join("\n") },
-      { name: "Quick Commands", value: "/set - change settings\n/configs - view all settings\n/diag - check RCON health" }
+      { name: "Active Servers", value: statusLine },
+      { name: "Quick Reference", value: "`/set` - change a setting\n`/configs` - view all settings\n`/diag` - RCON health check\n`/admin-channels` - reassign channels" }
     );
+
+  const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(`aviv_kits_${server.id}`).setLabel("Kits").setStyle(ButtonStyle.Secondary).setEmoji("🎁"),
+    new ButtonBuilder().setCustomId(`aviv_economy_${server.id}`).setLabel("Economy").setStyle(ButtonStyle.Secondary).setEmoji("💰"),
+    new ButtonBuilder().setCustomId(`aviv_shop_${server.id}`).setLabel("Shop").setStyle(ButtonStyle.Secondary).setEmoji("🛒"),
+    new ButtonBuilder().setCustomId(`aviv_zorp_${server.id}`).setLabel("ZORP").setStyle(ButtonStyle.Secondary).setEmoji("🔰"),
+  );
+
+  const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(`aviv_teleport_${server.id}`).setLabel("Teleport").setStyle(ButtonStyle.Secondary).setEmoji("🌀"),
+    new ButtonBuilder().setCustomId(`aviv_killfeed_${server.id}`).setLabel("Kill Feed").setStyle(ButtonStyle.Secondary).setEmoji("⚔️"),
+    new ButtonBuilder().setCustomId(`aviv_moderation_${server.id}`).setLabel("Moderation").setStyle(ButtonStyle.Secondary).setEmoji("🛡️"),
+  );
+
+  await interaction.editReply({ embeds: [embed], components: [row1, row2] });
+}
+
+export async function handleAvivButton(interaction: ButtonInteraction): Promise<void> {
+  const parts = interaction.customId.split("_");
+  // aviv_<category>_<serverId>
+  const category = parts[1];
+  const serverId = parseInt(parts[2] ?? "0", 10);
+
+  const catDef = CATEGORY_CONFIGS[category];
+  if (!catDef || !serverId) {
+    await interaction.reply({ content: "Unknown category.", ephemeral: true });
+    return;
+  }
+
+  await interaction.deferReply({ ephemeral: true });
+
+  const configs = await Promise.all(
+    catDef.keys.map(async key => {
+      const val = await db.getConfig(serverId, key);
+      return `\`${key}\`: ${val ?? "*(not set)*"}`;
+    })
+  );
+
+  const embed = new EmbedBuilder()
+    .setTitle(catDef.label)
+    .setColor(0x5865f2)
+    .setDescription(configs.join("\n"))
+    .setFooter({ text: "Use /set [config_name] [value] to change any setting." });
 
   await interaction.editReply({ embeds: [embed] });
 }

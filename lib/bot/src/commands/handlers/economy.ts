@@ -198,3 +198,26 @@ export async function handleSubPointsServer(interaction: ChatInputCommandInterac
   const currency = await getCurrencyName(server.id);
   await interaction.editReply({ content: `Removed ${formatCurrency(amount, currency)} from all ${top.length} players on Server ${server.server_number}.` });
 }
+
+export async function handleWipeEconomy(interaction: ChatInputCommandInteraction): Promise<void> {
+  if (!await requireRole(interaction, "avivadmin")) return;
+  const server = await getServerForInteraction(interaction);
+  if (!server) return;
+  await interaction.deferReply({ ephemeral: true });
+
+  await db.wipeEconomy(server.id);
+
+  const logsChannelId = await db.getChannel(server.id, "logs").catch(() => null);
+  if (logsChannelId && interaction.guild) {
+    try {
+      const ch = await interaction.guild.channels.fetch(logsChannelId);
+      if (ch?.isTextBased()) {
+        await (ch as import("discord.js").TextChannel).send(
+          `\u{1F5D1}\uFE0F Economy wiped on Server ${server.server_number} by <@${interaction.user.id}>.`
+        );
+      }
+    } catch { /* ignore */ }
+  }
+
+  await interaction.editReply({ content: `All economy balances wiped on Server ${server.server_number}.` });
+}

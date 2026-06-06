@@ -48,7 +48,7 @@ import { handleSetup, handleAddServer, handleRemoveServer, handleDiag, handleAvi
 import { handleLink, handleUnlink, handleAdminLink, handleWhois, handleSyncMe, handleSyncTarget, handleGetPlayerinfo } from "./handlers/linking.js";
 import { handleAddToList, handleRemoveFromList, handleGetList } from "./handlers/lists.js";
 import { handleGivekit } from "./handlers/kits.js";
-import { handleBalance, handleDaily, handleTransfer, handleSwap, handleLeaderboard, handleSetdailyscale, handleKillpoints, handleAddPointsPlayer, handleSubPointsPlayer, handleAddPointsServer, handleSubPointsServer } from "./handlers/economy.js";
+import { handleBalance, handleDaily, handleTransfer, handleSwap, handleLeaderboard, handleSetdailyscale, handleKillpoints, handleAddPointsPlayer, handleSubPointsPlayer, handleAddPointsServer, handleSubPointsServer, handleWipeEconomy } from "./handlers/economy.js";
 import { handleSpin, handleCoinflip, handleBlackjack, handleMaxbet } from "./handlers/gambling.js";
 import { handleShop, handleAdminShopCreateShop, handleAdminShopDeleteShop, handleAdminShopAddCategory, handleAdminShopAddSubcategory, handleAdminShopAddItem, handleAdminShopAddKit, handleAdminShopEditProduct, handleAdminShopRemoveProduct, handleDelayshop, handleOpenshop } from "./handlers/shop.js";
 import { handleKick, handleBan, handleUnban, handleMute, handleUnmute, handleWarn, handleWarnings, handleClearwarnings } from "./handlers/moderation.js";
@@ -413,6 +413,11 @@ export const commands: Command[] = [
   {
     data: serverOption(new SlashCommandBuilder().setName("prison-list").setDescription("View all imprisoned players") as SlashCommandBuilder),
     execute: handlePrisonList,
+  },
+  // Wipe commands
+  {
+    data: serverOption(new SlashCommandBuilder().setName("wipe-economy").setDescription("Reset all player balances to 0 on this server (admin)") as SlashCommandBuilder),
+    execute: handleWipeEconomy,
   },
   // ZORP
   {
