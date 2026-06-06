@@ -17,14 +17,14 @@ export async function handleAddToList(interaction: ChatInputCommandInteraction):
   // Sync to RCON if server is connected
   if (server.rcon_host) {
     const listRconCmds: Record<string, string> = {
-      "viplist": `addto viplist ${ingameName}`,
-      "zorpallowlist": `addto zorpallowlist ${ingameName}`,
-      "zorpbanlist": `addto zorpbanlist ${ingameName}`,
-      "prisonlist": `addto prisonlist ${ingameName}`,
-      "recyclerlist": `addto recyclerlist ${ingameName}`,
-      "noteblocklist": `addto noteblocklist ${ingameName}`,
+      "viplist": `addto viplist "${ingameName}"`,
+      "zorpallowlist": `addto zorpallowlist "${ingameName}"`,
+      "zorpbanlist": `addto zorpbanlist "${ingameName}"`,
+      "prisonlist": `addto prisonlist "${ingameName}"`,
+      "recyclerlist": `addto recyclerlist "${ingameName}"`,
+      "noteblocklist": `addto noteblocklist "${ingameName}"`,
     };
-    const cmd = listRconCmds[listName] ?? (listName.startsWith("elitelist") ? `addto ${listName} ${ingameName}` : null);
+    const cmd = listRconCmds[listName] ?? (listName.startsWith("elitelist") ? `addto ${listName} "${ingameName}"` : null);
     if (cmd) {
       await rconManager.sendFireAndForget(server.id, server.rcon_host, server.rcon_port!, server.rcon_password!, cmd).catch(() => null);
     }
@@ -44,7 +44,7 @@ export async function handleRemoveFromList(interaction: ChatInputCommandInteract
   await db.removeFromList(server.id, listName, ingameName);
 
   if (server.rcon_host) {
-    await rconManager.sendFireAndForget(server.id, server.rcon_host, server.rcon_port!, server.rcon_password!, `removefrom ${listName} ${ingameName}`).catch(() => null);
+    await rconManager.sendFireAndForget(server.id, server.rcon_host, server.rcon_port!, server.rcon_password!, `removefrom ${listName} "${ingameName}"`).catch(() => null);
   }
 
   await interaction.reply({ content: `Removed **${ingameName}** from **${listName}** on Server ${server.server_number}.`, flags: MessageFlags.Ephemeral });

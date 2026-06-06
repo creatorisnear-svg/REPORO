@@ -20,7 +20,7 @@ export async function runZorpExpiryCheck(client: Client): Promise<void> {
           if (server.rcon_host) {
             await rconManager.sendFireAndForget(
               server.id, server.rcon_host, server.rcon_port!, server.rcon_password!,
-              `o.zorp delete ${zone.ingame_name}`
+              `o.zorp delete "${zone.ingame_name}"`
             ).catch(() => null);
           }
 

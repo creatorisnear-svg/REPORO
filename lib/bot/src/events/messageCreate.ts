@@ -128,7 +128,7 @@ export async function handleMessageCreate(message: Message): Promise<void> {
   if (prefix === "!say") {
     const server = guildServers.find(s => s.server_number === 1);
     if (!server) { await message.reply("No server 1 configured.").catch(() => null); return; }
-    const response = await sendToServer(server, `global.say ${args}`);
+    const response = await sendToServer(server, `global.say "${args.replace(/"/g, "'").substring(0, 128)}"`);
     await message.reply(`**Server 1 response:** ${response}`).catch(() => null);
     return;
   }

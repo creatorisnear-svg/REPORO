@@ -448,7 +448,7 @@ async function handleChatMessage(serverId: number, playerName: string, message: 
     if (tpHomeEnabled === "on") {
       const server = await getServerInfo(serverId);
       if (server?.rcon_host) {
-        await rconManager.sendFireAndForget(serverId, server.rcon_host, server.rcon_port!, server.rcon_password!, `global.killplayer ${playerName}`).catch(() => null);
+        await rconManager.sendFireAndForget(serverId, server.rcon_host, server.rcon_port!, server.rcon_password!, `global.killplayer "${playerName}"`).catch(() => null);
         await db.setTpHomePending(serverId, playerName);
         tpHomePending.set(`${serverId}:${playerName}`, Date.now());
       }
@@ -551,7 +551,7 @@ async function handleZorpCreate(serverId: number, playerName: string): Promise<v
 
   try {
     await rconManager.sendFireAndForget(serverId, server.rcon_host, server.rcon_port!, server.rcon_password!,
-      `o.zorp create ${playerName}`);
+      `o.zorp create "${playerName}"`);
   } catch { /* ignore */ }
 
   const existing = await db.getZorpZone(serverId, playerName);
@@ -569,7 +569,7 @@ async function handleZorpDelete(serverId: number, playerName: string): Promise<v
 
   try {
     await rconManager.sendFireAndForget(serverId, server.rcon_host, server.rcon_port!, server.rcon_password!,
-      `o.zorp delete ${playerName}`);
+      `o.zorp delete "${playerName}"`);
   } catch { /* ignore */ }
 
   await db.deleteZorpZone(serverId, playerName);
@@ -585,7 +585,7 @@ async function handleTpHome(serverId: number, playerName: string): Promise<void>
 
   try {
     await rconManager.sendFireAndForget(serverId, server.rcon_host, server.rcon_port!, server.rcon_password!,
-      `teleport2bed ${playerName}`);
+      `global.teleport2bed "${playerName}"`);
   } catch { /* ignore */ }
 }
 
@@ -665,7 +665,7 @@ async function handleRecycler(serverId: number, playerName: string): Promise<voi
 
   try {
     await rconManager.sendFireAndForget(serverId, server.rcon_host, server.rcon_port!, server.rcon_password!,
-      `spawnrecycler ${playerName}`);
+      `spawnrecycler "${playerName}"`);
     await db.recordKitClaim(serverId, playerName, "recycler");
   } catch { /* ignore */ }
 }
@@ -696,7 +696,7 @@ async function handleDirectionalTp(serverId: number, playerName: string, tpConfi
   const killFirst = await getConfig(serverId, `${tpConfig}_kill`) ?? "off";
   try {
     if (killFirst === "on") {
-      await rconManager.sendFireAndForget(serverId, server.rcon_host, server.rcon_port!, server.rcon_password!, `global.killplayer ${playerName}`);
+      await rconManager.sendFireAndForget(serverId, server.rcon_host, server.rcon_port!, server.rcon_password!, `global.killplayer "${playerName}"`);
       await new Promise(r => setTimeout(r, 2000));
     }
     await rconManager.sendFireAndForget(serverId, server.rcon_host, server.rcon_port!, server.rcon_password!,
