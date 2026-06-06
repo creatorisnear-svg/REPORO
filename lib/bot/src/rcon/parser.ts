@@ -320,8 +320,10 @@ const STREAK_LABELS: Record<number, string> = {
 };
 
 async function handleKill(serverId: number, killer: string, victim: string, weapon: string): Promise<void> {
-  // Treat environmental deaths as suicides: fall damage, world kills, etc.
-  const isEnvDeath = killer === victim || WORLD_KILLER_RE.test(killer) || (killer === "" && ENV_WEAPON_RE.test(weapon));
+  // Treat environmental deaths as suicides: fall damage, world kills, SERVER kills, etc.
+  // RCE logs environmental deaths as "SERVER 'fall' killed <victim>" — killer starts with "SERVER"
+  const isServerKill = /^SERVER\b/i.test(killer);
+  const isEnvDeath = killer === victim || isServerKill || WORLD_KILLER_RE.test(killer) || (killer === "" && ENV_WEAPON_RE.test(weapon));
   const isSuicide = isEnvDeath;
   const killerIsNpc = !isEnvDeath && isNpc(killer);
   const victimIsNpc = isNpc(victim);
