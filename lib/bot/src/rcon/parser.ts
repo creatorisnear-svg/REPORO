@@ -212,6 +212,7 @@ async function handleKill(serverId: number, killer: string, victim: string, weap
     miscKills, sciKillerEnabled, sciVictimEnabled,
     killerColor, phraseColor, victimColor,
     customPhrase, phraseRandomizer,
+    combatLockEnabled, combatLockTime,
   ] = await Promise.all([
     getConfig(serverId, "KillFeedDiscord").then(v => v ?? "on"),
     getConfig(serverId, "KillFeedGame").then(v => v ?? "off"),
@@ -223,6 +224,8 @@ async function handleKill(serverId: number, killer: string, victim: string, weap
     getConfig(serverId, "victimcolor").then(v => v ?? "#FF3333"),
     getConfig(serverId, "killphrase"),
     getConfig(serverId, "killphraserandomizer").then(v => v ?? "off"),
+    getConfig(serverId, "combatlock_use").then(v => v ?? "off"),
+    getConfig(serverId, "combatlock_time").then(v => v ?? "60"),
   ]);
 
   const randomize = phraseRandomizer === "on";
@@ -303,6 +306,12 @@ async function handleKill(serverId: number, killer: string, victim: string, weap
     } catch { /* player not linked */ }
   }
 
+  // Combat lock — prevent killer from teleporting after a kill
+  if (combatLockEnabled === "on") {
+    const secs = parseInt(combatLockTime, 10) || 60;
+    setCombatLock(serverId, killer, secs);
+  }
+
   const streak = playerKillStreaks.get(`${serverId}:${killer}`) ?? { count: 0, lastReset: Date.now() };
   streak.count++;
   playerKillStreaks.set(`${serverId}:${killer}`, streak);
@@ -356,6 +365,7 @@ async function handleBountyKill(serverId: number, killer: string, victim: string
     const rewardStr = await getConfig(serverId, "BountyReward") ?? "100";
     const baseReward = parseInt(rewardStr, 10) || 100;
     await db.upsertBounty(serverId, killer, newCount, baseReward);
+    await db.setConfig(serverId, `bounty_placed_at_${killer}`, new Date().toISOString()).catch(() => null);
   }
 }
 
