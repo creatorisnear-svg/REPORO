@@ -45,7 +45,20 @@ export async function runZorpExpiryCheck(client: Client): Promise<void> {
               "playerlist"
             );
             const online = playerListRaw.toLowerCase().includes(zone.ingame_name.toLowerCase());
-            const newStatus = online ? "green" : "red";
+
+            const zorpTimeStr = await db.getConfig(server.id, "zorptime") ?? "30";
+            const zorpTimeMs = parseFloat(zorpTimeStr) * 60 * 1000;
+
+            let newStatus: string;
+            if (online) {
+              newStatus = "green";
+              await db.updateZorpLastSeen(server.id, zone.ingame_name, new Date().toISOString()).catch(() => null);
+            } else {
+              const lastSeen = zone.last_seen_at ? new Date(zone.last_seen_at).getTime() : 0;
+              const offlineMs = Date.now() - lastSeen;
+              newStatus = offlineMs >= zorpTimeMs ? "red" : "yellow";
+            }
+
             if (zone.status !== newStatus) {
               await db.updateZorpStatus(server.id, zone.ingame_name, newStatus).catch(() => null);
             }

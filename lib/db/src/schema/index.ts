@@ -57,7 +57,8 @@ export async function runMigrations(db: Client): Promise<void> {
       zone_id TEXT,
       created_at DATETIME,
       expires_at DATETIME,
-      status TEXT DEFAULT 'white'
+      status TEXT DEFAULT 'white',
+      last_seen_at DATETIME
     )`,
     `CREATE TABLE IF NOT EXISTS zorp_pending (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -193,5 +194,17 @@ export async function runMigrations(db: Client): Promise<void> {
 
   for (const sql of statements) {
     await db.execute(sql);
+  }
+
+  // Additive column migrations for existing databases
+  const additiveMigrations = [
+    "ALTER TABLE zorp_zones ADD COLUMN last_seen_at DATETIME",
+  ];
+  for (const sql of additiveMigrations) {
+    try {
+      await db.execute(sql);
+    } catch {
+      // Column likely already exists — safe to ignore
+    }
   }
 }

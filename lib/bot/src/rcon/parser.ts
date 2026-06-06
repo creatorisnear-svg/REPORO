@@ -332,19 +332,30 @@ async function handleChatMessage(serverId: number, playerName: string, message: 
       await handleKit(serverId, playerName, twoStepKit);
       return;
     }
+    // Message did not match any two-step kit phrase — clear pending state
+    eliteKitPending.delete(eliteKey);
   }
 
   // Single-step elite kits (1-22)
-  // "Yes" only fires as kit if NOT in ZORP pending state
-  // "Retreat!" only fires as kit if NOT in TPHOME pending state (already returned above)
   const singleKit = singleStepKits[msg];
   if (singleKit) {
-    if (msg === "Yes" && zorpState && Date.now() - zorpState.timestamp < 30_000) {
-      // Already handled above by ZORP flow
-    } else {
-      await handleKit(serverId, playerName, singleKit);
-      return;
-    }
+    const inZorpFlow = zorpState && Date.now() - zorpState.timestamp < 30_000;
+    const inTpHomeFlow = tpHomePending.has(`${serverId}:${playerName}`) &&
+      Date.now() - tpHomePending.get(`${serverId}:${playerName}`)! < 120_000;
+    const inEliteKitFlow = eliteKitPending.has(`${serverId}:${playerName}`) &&
+      Date.now() - eliteKitPending.get(`${serverId}:${playerName}`)! < 30_000;
+
+    // "Yes" conflicts with ZORP flow
+    if (msg === "Yes" && inZorpFlow) return;
+
+    // "Retreat!" conflicts with TPHOME flow
+    if (msg === "Retreat!" && inTpHomeFlow) return;
+
+    // If player is in two-step elite kit pending, skip single-step handling
+    if (inEliteKitFlow) return;
+
+    await handleKit(serverId, playerName, singleKit);
+    return;
   }
 
   // Recycler

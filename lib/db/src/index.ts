@@ -113,6 +113,7 @@ export interface ZorpZoneRow {
   created_at: string;
   expires_at: string;
   status: string;
+  last_seen_at: string | null;
 }
 
 export interface BountyRow {
@@ -541,6 +542,13 @@ export async function updateZorpStatus(serverId: number, ingameName: string, sta
   await db.execute({
     sql: "UPDATE zorp_zones SET status = ? WHERE server_id = ? AND ingame_name = ?",
     args: [status, serverId, ingameName]
+  });
+}
+
+export async function updateZorpLastSeen(serverId: number, ingameName: string, timestamp: string): Promise<void> {
+  await db.execute({
+    sql: "UPDATE zorp_zones SET last_seen_at = ? WHERE server_id = ? AND ingame_name = ?",
+    args: [timestamp, serverId, ingameName]
   });
 }
 
