@@ -98,19 +98,39 @@ export async function handleAddServer(interaction: ChatInputCommandInteraction):
   const host = interaction.options.getString("host", true);
   const port = interaction.options.getInteger("port", true);
   const password = interaction.options.getString("password", true);
-  const label = interaction.options.getString("label") ?? "Server 1";
   const serverNum = interaction.options.getInteger("server") ?? 1;
+  const label = interaction.options.getString("label") ?? `Server ${serverNum}`;
+  const guildId = interaction.guild.id;
 
-  const email = `discord_${interaction.guild.id}@avivbot.internal`;
+  // Check subscription server limit
+  const allowedCount = await db.getSubscriptionServerCount(guildId);
+  const existingServers = await db.getServersByGuild(guildId);
+  if (existingServers.length >= allowedCount) {
+    await interaction.editReply({
+      content: `Your subscription allows **${allowedCount}** server${allowedCount === 1 ? "" : "s"}. You already have **${existingServers.length}** connected. Upgrade your plan at https://avivbot.com/pricing to add more servers.`,
+    });
+    return;
+  }
+
+  // Check if server number is already taken
+  const existing = existingServers.find(s => s.server_number === serverNum);
+  if (existing) {
+    await interaction.editReply({
+      content: `Server ${serverNum} is already configured (${existing.server_label}). Use /remove-server first, or choose a different server number.`,
+    });
+    return;
+  }
+
+  const email = `discord_${guildId}@avivbot.internal`;
   let customer = await db.getCustomerByEmail(email);
   if (!customer) {
-    await db.upsertCustomer(email, `discord_${interaction.guild.id}`, "basic");
+    await db.upsertCustomer(email, `discord_${guildId}`, "basic");
     customer = await db.getCustomerByEmail(email);
   }
 
   const serverId = await db.insertServer({
     customerId: customer!.id,
-    guildId: interaction.guild.id,
+    guildId,
     rconHost: host,
     rconPort: port,
     rconPassword: password,
@@ -120,9 +140,9 @@ export async function handleAddServer(interaction: ChatInputCommandInteraction):
 
   try {
     await rconManager.sendCommand(serverId, host, port, password, "status");
-    await interaction.editReply({ content: `Server ${serverNum} added and RCON connection verified. Server ID: ${serverId}` });
+    await interaction.editReply({ content: `Server ${serverNum} (${label}) added and RCON connection verified. ID: ${serverId}` });
   } catch {
-    await interaction.editReply({ content: `Server ${serverNum} added (ID: ${serverId}) but RCON connection failed. Check your credentials.` });
+    await interaction.editReply({ content: `Server ${serverNum} (${label}) added (ID: ${serverId}) but RCON connection failed. Check your host, port, and password.` });
   }
 }
 

@@ -60,8 +60,19 @@ import { handleSet, autocompleteSet, handleConfigs } from "./handlers/configs.js
 
 function serverOption(cmd: SlashCommandBuilder) {
   return cmd.addIntegerOption(o =>
-    o.setName("server").setDescription("Server number (1, 2, 3)").setRequired(false)
-      .addChoices({ name: "Server 1", value: 1 }, { name: "Server 2", value: 2 }, { name: "Server 3", value: 3 })
+    o.setName("server").setDescription("Server number").setRequired(false)
+      .addChoices(
+        { name: "Server 1", value: 1 },
+        { name: "Server 2", value: 2 },
+        { name: "Server 3", value: 3 },
+        { name: "Server 4", value: 4 },
+        { name: "Server 5", value: 5 },
+        { name: "Server 6", value: 6 },
+        { name: "Server 7", value: 7 },
+        { name: "Server 8", value: 8 },
+        { name: "Server 9", value: 9 },
+        { name: "Server 10", value: 10 },
+      )
   );
 }
 

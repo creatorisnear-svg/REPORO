@@ -17,24 +17,47 @@ function getStripe(): Stripe {
 }
 
 router.post("/stripe/checkout", async (req: Request, res: Response) => {
-  const { planId, guildId, discordUserId } = req.body as Record<string, string>;
+  const body = req.body as Record<string, string | number>;
+  const guildId = String(body["guildId"] ?? "");
+  const discordUserId = String(body["discordUserId"] ?? "");
+  const planId = String(body["planId"] ?? "");
+  const serverCount = Math.max(1, Math.min(50, Number(body["serverCount"] ?? 1)));
 
-  const plans: Record<string, { priceId: string; name: string }> = {
-    basic: { priceId: process.env["STRIPE_PRICE_BASIC"] ?? "", name: "Basic" },
-    pro: { priceId: process.env["STRIPE_PRICE_PRO"] ?? "", name: "Pro" },
-    enterprise: { priceId: process.env["STRIPE_PRICE_ENTERPRISE"] ?? "", name: "Enterprise" },
-  };
-
-  const plan = plans[planId];
-  if (!plan) {
-    res.status(400).json({ error: "Invalid plan" });
-    return;
-  }
+  const domain = process.env["REPLIT_DOMAINS"];
+  const baseUrl = `https://${typeof domain === "string" ? domain.split(",")[0] : "localhost"}`;
 
   try {
     const s = getStripe();
-    const domain = process.env["REPLIT_DOMAINS"];
-    const baseUrl = `https://${typeof domain === "string" ? domain.split(",")[0] : "localhost"}`;
+
+    if (planId === "per-server") {
+      const priceId = process.env["STRIPE_PRICE_PER_SERVER"];
+      if (!priceId) {
+        res.status(500).json({ error: "STRIPE_PRICE_PER_SERVER not configured" });
+        return;
+      }
+      const session = await s.checkout.sessions.create({
+        mode: "subscription",
+        payment_method_types: ["card"],
+        line_items: [{ price: priceId, quantity: serverCount }],
+        metadata: { guildId, discordUserId, planId: "per-server", serverCount: String(serverCount) },
+        success_url: `${baseUrl}/success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${baseUrl}/pricing`,
+      });
+      res.json({ url: session.url });
+      return;
+    }
+
+    const plans: Record<string, { priceId: string }> = {
+      basic:      { priceId: process.env["STRIPE_PRICE_BASIC"] ?? "" },
+      pro:        { priceId: process.env["STRIPE_PRICE_PRO"] ?? "" },
+      enterprise: { priceId: process.env["STRIPE_PRICE_ENTERPRISE"] ?? "" },
+    };
+
+    const plan = plans[planId];
+    if (!plan) {
+      res.status(400).json({ error: "Invalid plan" });
+      return;
+    }
 
     const session = await s.checkout.sessions.create({
       mode: "subscription",
@@ -69,9 +92,9 @@ router.post("/stripe/webhook", async (req: Request, res: Response) => {
 
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
-    const { guildId, discordUserId, planId } = session.metadata ?? {};
+    const { guildId, discordUserId, planId, serverCount } = session.metadata ?? {};
     if (guildId && discordUserId && planId) {
-      await db.upsertSubscription(guildId, discordUserId, planId, session.subscription as string, "active");
+      await db.upsertSubscription(guildId, discordUserId, planId, session.subscription as string, "active", Number(serverCount ?? 1));
     }
   }
 

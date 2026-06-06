@@ -199,6 +199,7 @@ export async function runMigrations(db: Client): Promise<void> {
   // Additive column migrations for existing databases
   const additiveMigrations = [
     "ALTER TABLE zorp_zones ADD COLUMN last_seen_at DATETIME",
+    "ALTER TABLE subscriptions ADD COLUMN server_count INTEGER DEFAULT 1",
   ];
   for (const sql of additiveMigrations) {
     try {

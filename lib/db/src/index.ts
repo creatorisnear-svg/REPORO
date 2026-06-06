@@ -859,18 +859,29 @@ export async function upsertSubscription(
   discordUserId: string,
   plan: string,
   stripeSubscriptionId: string,
-  status: string
+  status: string,
+  serverCount: number = 1
 ): Promise<void> {
   await db.execute({
-    sql: `INSERT INTO subscriptions (discord_guild_id, discord_user_id, plan, stripe_subscription_id, status)
-          VALUES (?, ?, ?, ?, ?)
+    sql: `INSERT INTO subscriptions (discord_guild_id, discord_user_id, plan, stripe_subscription_id, status, server_count)
+          VALUES (?, ?, ?, ?, ?, ?)
           ON CONFLICT(discord_guild_id) DO UPDATE SET
             discord_user_id = excluded.discord_user_id,
             plan = excluded.plan,
             stripe_subscription_id = excluded.stripe_subscription_id,
-            status = excluded.status`,
-    args: [guildId, discordUserId, plan, stripeSubscriptionId, status]
+            status = excluded.status,
+            server_count = excluded.server_count`,
+    args: [guildId, discordUserId, plan, stripeSubscriptionId, status, serverCount]
   });
+}
+
+export async function getSubscriptionServerCount(guildId: string): Promise<number> {
+  const r = await db.execute({
+    sql: "SELECT server_count FROM subscriptions WHERE discord_guild_id = ? AND status = 'active'",
+    args: [guildId]
+  });
+  const row = r.rows[0] as Record<string, unknown> | undefined;
+  return Number(row?.["server_count"] ?? 1);
 }
 
 export async function getSubscriptionByGuild(guildId: string): Promise<SubscriptionRow | null> {
