@@ -121,6 +121,7 @@ async function postToChannel(serverId: number, channelType: string, content: str
 // Handles: [PS5], [XBONE], [PC], [PS4], [GAMEPASS], [76561198xxx/123456], etc.
 function cleanPlayerName(name: string): string {
   return name
+    .replace(/\([^)]*\)\s*$/, "")          // (Boar), (Wolf) etc. appended by RCE to NPC names
     .replace(/\s*\[\w[\w\d]*\]\s*$/, "")   // [PS5], [XBONE], [PC] etc.
     .replace(/\s*\[[\d]+\/[\d]+\]\s*$/, "") // [steamId/uid]
     .replace(/[!.]+$/, "")                  // trailing punctuation
@@ -251,7 +252,30 @@ async function handleNoteLog(serverId: number, playerName: string, noteText: str
 }
 
 const playerKillStreaks = new Map<string, { count: number; lastReset: number }>();
-const killAntiAbuseMap = new Map<string, number>();
+const playerTotalKills  = new Map<string, number>(); // serverId:name -> total kills this session
+const playerTotalDeaths = new Map<string, number>(); // serverId:name -> total deaths this session
+const killAntiAbuseMap  = new Map<string, number>();
+
+function getPlayerStats(serverId: number, name: string): { kills: number; deaths: number; kd: string } {
+  const k = playerTotalKills.get(`${serverId}:${name}`) ?? 0;
+  const d = playerTotalDeaths.get(`${serverId}:${name}`) ?? 0;
+  const kd = d === 0 ? k.toString() : (k / d).toFixed(1);
+  return { kills: k, deaths: d, kd };
+}
+
+function incrementKills(serverId: number, name: string): number {
+  const key = `${serverId}:${name}`;
+  const n = (playerTotalKills.get(key) ?? 0) + 1;
+  playerTotalKills.set(key, n);
+  return n;
+}
+
+function incrementDeaths(serverId: number, name: string): number {
+  const key = `${serverId}:${name}`;
+  const n = (playerTotalDeaths.get(key) ?? 0) + 1;
+  playerTotalDeaths.set(key, n);
+  return n;
+}
 
 // NPC entity detection
 const SCIENTIST_RE = /scientist/i;
@@ -355,6 +379,15 @@ async function handleKill(serverId: number, killer: string, victim: string, weap
     if (msg) await postToChannel(serverId, "killfeed", msg);
   }
 
+  // Pre-compute streaks and stats for the kill message
+  const killerStreakNow = (playerKillStreaks.get(`${serverId}:${killer}`)?.count ?? 0) + 1;
+  const victimStreakNow = playerKillStreaks.get(`${serverId}:${victim}`)?.count ?? 0;
+
+  // Update session totals (increment killer kills + victim deaths for PvP; just victim deaths for env/NPC)
+  if (isPlayerVsPlayer) incrementKills(serverId, killer);
+  incrementDeaths(serverId, victim);
+  const killerStats = getPlayerStats(serverId, killer);
+
   // In-game kill feed
   if (gameEnabled === "on") {
     const server = await getServerInfo(serverId);
@@ -362,26 +395,30 @@ async function handleKill(serverId: number, killer: string, victim: string, weap
       const phrase = pickPhrase(customPhrase, randomize);
       let gameMsg: string | null = null;
 
-      const L = `<color=#CC44FF>\u300A</color>`;
-      const R = `<color=#CC44FF>\u300B</color>`;
+      const SK = `<color=${phraseColor}>[${killerStreakNow}]</color>`;
+      const SV = `<color=#AAAAAA>[${victimStreakNow}]</color>`;
+      const STATS = `<color=#AAAAAA>(TK:${killerStats.kills}|TD:${killerStats.deaths}|KD:${killerStats.kd})</color>`;
 
       if (isSuicide) {
-        gameMsg = `${L} <color=${killerColor}>${victim}</color> <color=${phraseColor}>met their own end</color> ${R}`;
+        gameMsg = `<color=${victimColor}>${victim}</color> <color=${phraseColor}>met their own end</color>`;
       } else if (isPlayerVsPlayer) {
-        gameMsg = `${L} <color=${killerColor}>${killer}</color> <color=${phraseColor}>${phrase}</color> <color=${victimColor}>${victim}</color> <color=#CC44FF>[</color><color=#9944CC>${weapon}</color><color=#CC44FF>]</color> ${R}`;
+        gameMsg = `<color=${killerColor}>${killer}</color> ${SK} <color=${phraseColor}>${phrase}</color> ${SV} <color=${victimColor}>${victim}</color> ${STATS}`;
       } else if (isPlayerKillsSci && sciKillerEnabled === "on") {
-        gameMsg = `${L} <color=${killerColor}>${killer}</color> <color=${phraseColor}>${phrase}</color> <color=${victimColor}>a Scientist</color> ${R}`;
+        gameMsg = `<color=${killerColor}>${killer}</color> ${SK} <color=${phraseColor}>${phrase}</color> <color=${victimColor}>a Scientist</color>`;
       } else if (isSciKillsPlayer && sciVictimEnabled === "on") {
-        gameMsg = `${L} <color=${victimColor}>${victim}</color> <color=${phraseColor}>was eliminated by</color> <color=${killerColor}>a Scientist</color> ${R}`;
+        gameMsg = `<color=${victimColor}>${victim}</color> <color=${phraseColor}>was eliminated by a Scientist</color>`;
       } else if (isPlayerKillsMisc && miscKills === "on") {
-        gameMsg = `${L} <color=${killerColor}>${killer}</color> <color=${phraseColor}>${phrase}</color> <color=${victimColor}>${victim}</color> ${R}`;
+        gameMsg = `<color=${killerColor}>${killer}</color> ${SK} <color=${phraseColor}>${phrase}</color> <color=${victimColor}>${victim}</color>`;
       } else if (isMiscKillsPlayer && miscKills === "on") {
-        gameMsg = `${L} <color=${victimColor}>${victim}</color> <color=${phraseColor}>was killed by</color> <color=${killerColor}>${killer}</color> ${R}`;
+        gameMsg = `<color=${victimColor}>${victim}</color> <color=${phraseColor}>was killed by a ${killer}</color>`;
       }
 
       if (gameMsg) await sendGameSay(server, gameMsg);
     }
   }
+
+  // Reset victim kill streak on death
+  playerKillStreaks.delete(`${serverId}:${victim}`);
 
   // Scientist economy points (when player kills a scientist)
   if (isPlayerKillsSci && sciKillerEnabled === "on") {
