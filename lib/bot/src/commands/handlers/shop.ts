@@ -480,7 +480,7 @@ async function completePurchase(interaction: ButtonInteraction, guildId: string)
       if (isKit(product.shortname)) {
         await rconManager.sendFireAndForget(
           server.id, server.rcon_host!, server.rcon_port!, server.rcon_password!,
-          `kit.give ${ingameName} ${kitName(product.shortname)}`
+          `kit.give "${ingameName}" "${kitName(product.shortname)}"`
         );
       } else {
         for (let i = 0; i < qty; i++) {
