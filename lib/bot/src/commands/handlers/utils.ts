@@ -99,6 +99,33 @@ export function hasRole(
   return hasAdmin || hasTarget;
 }
 
+// Kit names autocomplete — searches all servers in the guild's kitlist
+export async function autocompleteKitNameForGuild(interaction: AutocompleteInteraction, guildId: string): Promise<void> {
+  const servers = await db.getServersByGuild(guildId).catch(() => []);
+  const query = interaction.options.getFocused().toString().toLowerCase();
+  const kits = new Set<string>();
+  for (const s of servers) {
+    const list = await db.getList(s.id, "kitlist").catch(() => []);
+    for (const row of list) kits.add(row.ingame_name);
+  }
+  const matches = [...kits].filter(k => k.toLowerCase().includes(query)).slice(0, 25);
+  await interaction.respond(matches.map(k => ({ name: k, value: k })));
+}
+
+// In-game name autocomplete — searches all linked players in the guild
+export async function autocompleteIngameNameForGuild(interaction: AutocompleteInteraction, guildId: string): Promise<void> {
+  const servers = await db.getServersByGuild(guildId).catch(() => []);
+  const query = interaction.options.getFocused().toString().toLowerCase();
+  const names = new Set<string>();
+  for (const s of servers) {
+    const players = await db.getPlayersByServer(s.id).catch(() => []);
+    for (const p of players) {
+      if (p.ingame_name.toLowerCase().includes(query)) names.add(p.ingame_name);
+    }
+  }
+  await interaction.respond([...names].slice(0, 25).map(n => ({ name: n, value: n })));
+}
+
 // Shared autocomplete handler for the "server" option across all commands
 export async function autocompleteServer(interaction: AutocompleteInteraction): Promise<void> {
   if (!interaction.guild) { await interaction.respond([]); return; }

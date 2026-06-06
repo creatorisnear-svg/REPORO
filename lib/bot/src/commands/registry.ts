@@ -47,7 +47,7 @@ export const ALL_CONFIG_KEYS = [
 import { handleSetup, handleAddServer, handleRemoveServer, handleDiag, handleAviv } from "./handlers/setup.js";
 import { handleLink, handleUnlink, handleAdminLink, handleWhois, handleSyncMe, handleSyncTarget, handleGetPlayerinfo } from "./handlers/linking.js";
 import { handleAddToList, handleRemoveFromList, handleGetList } from "./handlers/lists.js";
-import { handleGivekit } from "./handlers/kits.js";
+import { handleGivekit, autocompleteGivekit } from "./handlers/kits.js";
 import { handleBalance, handleDaily, handleTransfer, handleSwap, handleLeaderboard, handleSetdailyscale, handleKillpoints, handleAddPointsPlayer, handleSubPointsPlayer, handleAddPointsServer, handleSubPointsServer, handleWipeEconomy } from "./handlers/economy.js";
 import { handleSpin, handleCoinflip, handleBlackjack, handleMaxbet } from "./handlers/gambling.js";
 import { handleShop, handleAdminShopCreateShop, handleAdminShopDeleteShop, handleAdminShopAddCategory, handleAdminShopAddSubcategory, handleAdminShopAddItem, handleAdminShopAddKit, handleAdminShopEditProduct, handleAdminShopRemoveProduct, handleDelayshop, handleOpenshop, autocompleteShopAdmin } from "./handlers/shop.js";
@@ -201,15 +201,16 @@ export const commands: Command[] = [
   },
   // Kits
   {
-    data: serverOption(new SlashCommandBuilder().setName("givekit").setDescription("Manually give a kit to a player (admin only)")
-      .addStringOption(o => o.setName("ingame_name").setDescription("In-game name").setRequired(true))
-      .addStringOption(o => o.setName("kit_name").setDescription("Kit name").setRequired(true)) as SlashCommandBuilder),
+    data: serverOption(new SlashCommandBuilder().setName("givekit").setDescription("Give a kit to a player (admin only)")
+      .addStringOption(o => o.setName("ingame_name").setDescription("Player's in-game name — search as you type").setRequired(true).setAutocomplete(true))
+      .addStringOption(o => o.setName("kit_name").setDescription("Kit name — search as you type").setRequired(true).setAutocomplete(true)) as SlashCommandBuilder),
     execute: handleGivekit,
+    autocomplete: autocompleteGivekit,
   },
   // Economy
   {
-    data: serverOption(new SlashCommandBuilder().setName("balance").setDescription("Check a player's balance")
-      .addStringOption(o => o.setName("ingame_name").setDescription("In-game name (leave blank for yourself)").setRequired(false)) as SlashCommandBuilder),
+    data: new SlashCommandBuilder().setName("balance").setDescription("Check your balance across all linked servers")
+      .addUserOption(o => o.setName("player").setDescription("Check another player (admins only)").setRequired(false)) as SlashCommandBuilder,
     execute: handleBalance,
   },
   {

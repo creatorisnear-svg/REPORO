@@ -1,7 +1,7 @@
-import type { ChatInputCommandInteraction } from "discord.js";
+import type { ChatInputCommandInteraction, AutocompleteInteraction } from "discord.js";
 import { MessageFlags } from "discord.js";
 import * as db from "@workspace/db";
-import { getServerForInteraction, requireRole } from "./utils.js";
+import { getServerForInteraction, requireRole, autocompleteKitNameForGuild, autocompleteIngameNameForGuild } from "./utils.js";
 import { rconManager } from "../../rcon/manager.js";
 
 export async function handleGivekit(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -32,4 +32,21 @@ export async function handleGivekit(interaction: ChatInputCommandInteraction): P
   } catch (err) {
     await interaction.editReply({ content: `Failed: ${String(err)}` });
   }
+}
+
+export async function autocompleteGivekit(interaction: AutocompleteInteraction): Promise<void> {
+  if (!interaction.guild) { await interaction.respond([]); return; }
+  const focused = interaction.options.getFocused(true);
+
+  if (focused.name === "kit_name") {
+    await autocompleteKitNameForGuild(interaction, interaction.guild.id);
+    return;
+  }
+
+  if (focused.name === "ingame_name") {
+    await autocompleteIngameNameForGuild(interaction, interaction.guild.id);
+    return;
+  }
+
+  await interaction.respond([]);
 }

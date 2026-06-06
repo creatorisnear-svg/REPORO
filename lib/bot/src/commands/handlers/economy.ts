@@ -1,30 +1,61 @@
 import type { ChatInputCommandInteraction } from "discord.js";
 import { EmbedBuilder, MessageFlags } from "discord.js";
 import * as db from "@workspace/db";
-import { getServerForInteraction, requireRole, getLinkedName, formatCurrency, randomInt } from "./utils.js";
+import { getServerForInteraction, requireRole, getLinkedName, formatCurrency, randomInt, hasRole } from "./utils.js";
 
 async function getCurrencyName(serverId: number): Promise<string> {
   return (await db.getConfig(serverId, "currency_name")) ?? "coins";
 }
 
 export async function handleBalance(interaction: ChatInputCommandInteraction): Promise<void> {
-  const server = await getServerForInteraction(interaction);
-  if (!server) return;
+  if (!interaction.guild) return;
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-  let ingameName = interaction.options.getString("ingame_name");
-  if (!ingameName) {
-    ingameName = await getLinkedName(interaction, server.id);
-    if (!ingameName) { await interaction.editReply({ content: "You are not linked. Use /link or specify a name." }); return; }
+  const targetUser = interaction.options.getUser("player");
+
+  // Non-admins can only check their own balance
+  if (targetUser && !hasRole(interaction, "avivadmin")) {
+    await interaction.editReply({ content: "Only admins can check other players' balances." });
+    return;
   }
 
-  const economy = await db.getEconomy(server.id, ingameName);
-  const currency = await getCurrencyName(server.id);
-  const bal = economy?.balance ?? 0;
+  const userId = targetUser?.id ?? interaction.user.id;
+  const servers = await db.getServersByGuild(interaction.guild.id);
+  if (!servers.length) {
+    await interaction.editReply({ content: "No servers configured yet." });
+    return;
+  }
+
+  const rows: Array<{ server: db.ServerRow; ingameName: string; balance: number; currency: string }> = [];
+  for (const server of servers) {
+    const player = await db.getPlayerByDiscord(server.id, userId);
+    if (player) {
+      const eco = await db.getEconomy(server.id, player.ingame_name);
+      const currency = await getCurrencyName(server.id);
+      rows.push({ server, ingameName: player.ingame_name, balance: eco?.balance ?? 0, currency });
+    }
+  }
+
+  if (!rows.length) {
+    const who = targetUser ? `<@${userId}>` : "You";
+    const verb = targetUser ? "is" : "are";
+    await interaction.editReply({ content: `${who} ${verb} not linked on any server. Use /link first.` });
+    return;
+  }
+
+  const desc = rows
+    .map(r => `**Server ${r.server.server_number}** — ${r.server.server_label}\n${r.ingameName}  |  **${formatCurrency(r.balance, r.currency)}**`)
+    .join("\n\n");
+
+  const totalLine = rows.length > 1
+    ? `\n\n**Total across all servers:** ${rows.reduce((a, r) => a + r.balance, 0)} ${rows[0]!.currency}`
+    : "";
+
   const embed = new EmbedBuilder()
-    .setTitle(`Balance: ${ingameName}`)
-    .setDescription(formatCurrency(bal, currency))
+    .setTitle(targetUser ? `Balance — ${targetUser.username}` : "Your Balance")
+    .setDescription(desc + totalLine)
     .setColor(0xf1c40f);
+
   await interaction.editReply({ embeds: [embed] });
 }
 

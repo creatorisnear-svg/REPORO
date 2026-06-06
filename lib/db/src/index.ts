@@ -619,6 +619,14 @@ export async function updateSchedulerLastSent(id: number): Promise<void> {
 
 // ---- shop queries ----
 
+export async function getPlayersByServer(serverId: number): Promise<PlayerRow[]> {
+  const r = await db.execute({
+    sql: "SELECT * FROM players WHERE server_id = ? LIMIT 200",
+    args: [serverId]
+  });
+  return r.rows as unknown as PlayerRow[];
+}
+
 export async function getShopCategories(serverId: number): Promise<ShopCategoryRow[]> {
   const r = await db.execute({
     sql: "SELECT * FROM shop_categories WHERE server_id = ?",

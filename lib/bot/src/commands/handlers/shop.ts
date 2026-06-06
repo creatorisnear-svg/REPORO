@@ -18,7 +18,7 @@ import {
   TextInputStyle,
 } from "discord.js";
 import * as db from "@workspace/db";
-import { requireRole } from "./utils.js";
+import { requireRole, autocompleteKitNameForGuild } from "./utils.js";
 import { rconManager } from "../../rcon/manager.js";
 
 // ---- Basket: keyed by userId:guildId (shop is global per guild) ----
@@ -574,6 +574,11 @@ export async function autocompleteShopAdmin(interaction: AutocompleteInteraction
       .slice(0, 25)
       .map(s => ({ name: s, value: s }));
     await interaction.respond(matches);
+    return;
+  }
+
+  if (focused.name === "kit_name") {
+    await autocompleteKitNameForGuild(interaction, interaction.guild.id);
     return;
   }
 

@@ -3,6 +3,31 @@ import { EmbedBuilder, MessageFlags } from "discord.js";
 import * as db from "@workspace/db";
 import { getServerForInteraction, requireRole } from "./utils.js";
 
+async function applyLinkedState(
+  guild: import("discord.js").Guild,
+  userId: string,
+  ingameName: string
+): Promise<void> {
+  try {
+    const member = await guild.members.fetch(userId);
+    const linkedRole = guild.roles.cache.find(r => r.name === "avivlinked");
+    if (linkedRole) await member.roles.add(linkedRole).catch(() => null);
+    await member.setNickname(ingameName).catch(() => null);
+  } catch { /* member may have left or bot lacks permissions */ }
+}
+
+async function removeLinkedState(
+  guild: import("discord.js").Guild,
+  userId: string
+): Promise<void> {
+  try {
+    const member = await guild.members.fetch(userId);
+    const linkedRole = guild.roles.cache.find(r => r.name === "avivlinked");
+    if (linkedRole) await member.roles.remove(linkedRole).catch(() => null);
+    await member.setNickname(null).catch(() => null);
+  } catch { /* member may have left or bot lacks permissions */ }
+}
+
 export async function handleLink(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!interaction.guild) return;
   const server = await getServerForInteraction(interaction);
@@ -25,17 +50,11 @@ export async function handleLink(interaction: ChatInputCommandInteraction): Prom
 
   await db.linkPlayer(server.id, interaction.user.id, ingameName);
   await db.ensureEconomy(server.id, ingameName);
+  await applyLinkedState(interaction.guild, interaction.user.id, ingameName);
 
-  // Assign avivlinked role
-  const linkedRole = interaction.guild.roles.cache.find(r => r.name === "avivlinked");
-  if (linkedRole) {
-    try {
-      const member = await interaction.guild.members.fetch(interaction.user.id);
-      await member.roles.add(linkedRole);
-    } catch { /* ignore */ }
-  }
-
-  await interaction.editReply({ content: `Linked your Discord to **${ingameName}** on Server ${server.server_number}.` });
+  await interaction.editReply({
+    content: `Linked! Your Discord is now connected to **${ingameName}** on Server ${server.server_number}.\nYour nickname and "avivlinked" role have been updated.`,
+  });
 }
 
 export async function handleUnlink(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -53,16 +72,17 @@ export async function handleUnlink(interaction: ChatInputCommandInteraction): Pr
 
   await db.unlinkPlayer(server.id, interaction.user.id);
 
-  // Remove avivlinked role
-  const linkedRole = interaction.guild.roles.cache.find(r => r.name === "avivlinked");
-  if (linkedRole) {
-    try {
-      const member = await interaction.guild.members.fetch(interaction.user.id);
-      await member.roles.remove(linkedRole);
-    } catch { /* ignore */ }
+  // Only remove role/nickname if not linked to any other server in this guild
+  const otherServers = await db.getServersByGuild(interaction.guild.id);
+  const stillLinked = (await Promise.all(
+    otherServers.filter(s => s.id !== server.id).map(s => db.getPlayerByDiscord(s.id, interaction.user.id))
+  )).some(Boolean);
+
+  if (!stillLinked) {
+    await removeLinkedState(interaction.guild, interaction.user.id);
   }
 
-  await interaction.editReply({ content: `Unlinked **${player.ingame_name}** from your Discord.` });
+  await interaction.editReply({ content: `Unlinked **${player.ingame_name}** from your Discord on Server ${server.server_number}.` });
 }
 
 export async function handleAdminLink(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -78,16 +98,11 @@ export async function handleAdminLink(interaction: ChatInputCommandInteraction):
 
   await db.linkPlayer(server.id, targetUser.id, ingameName);
   await db.ensureEconomy(server.id, ingameName);
+  await applyLinkedState(interaction.guild, targetUser.id, ingameName);
 
-  const linkedRole = interaction.guild.roles.cache.find(r => r.name === "avivlinked");
-  if (linkedRole) {
-    try {
-      const member = await interaction.guild.members.fetch(targetUser.id);
-      await member.roles.add(linkedRole);
-    } catch { /* ignore */ }
-  }
-
-  await interaction.editReply({ content: `Linked <@${targetUser.id}> to **${ingameName}** on Server ${server.server_number}.` });
+  await interaction.editReply({
+    content: `Linked <@${targetUser.id}> to **${ingameName}** on Server ${server.server_number}. Nickname and role updated.`,
+  });
 }
 
 export async function handleWhois(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -112,10 +127,10 @@ export async function handleWhois(interaction: ChatInputCommandInteraction): Pro
   for (const server of servers) {
     if (targetUser) {
       const player = await db.getPlayerByDiscord(server.id, targetUser.id);
-      if (player) lines.push(`Server ${server.server_number}: **${player.ingame_name}**`);
+      if (player) lines.push(`Server ${server.server_number} (${server.server_label}): **${player.ingame_name}**`);
     } else if (ingameName) {
       const player = await db.getPlayerByIngameName(server.id, ingameName);
-      if (player) lines.push(`Server ${server.server_number}: <@${player.discord_user_id}>`);
+      if (player) lines.push(`Server ${server.server_number} (${server.server_label}): <@${player.discord_user_id}>`);
     }
   }
 
