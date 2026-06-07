@@ -79,11 +79,35 @@ function isAnyTeamMemberOnline(serverId: number, teamId: number): boolean {
 }
 
 // Single-step elite kit phrase map (kits 1-22)
+// Maps RCE emote wheel codes (from SERVER CHAT events) to the phrase handleChatMessage expects.
+// Format in raw log: Message = "playerName : d11_quick_chat_xxx"
+const emoteToPhrase: Record<string, string> = {
+  // ZORP flow
+  "d11_quick_chat_questions_slot_1":              "Can I build around here?",
+  "d11_quick_chat_responses_slot_0":              "Yes",
+  "d11_quick_chat_responses_slot_1":              "No",
+  "d11_quick_chat_responses_slot_6":              "Goodbye",
+  // Resource / elite kits
+  "d11_quick_chat_i_need_phrase_format scrap":               "I Need Scrap",
+  "d11_quick_chat_i_need_phrase_format lowgradefuel":        "I Need Low Grade Fuel",
+  "d11_quick_chat_i_need_phrase_format d11_Food":            "I Need Food",
+  "d11_quick_chat_i_need_phrase_format d11_metal_fragments": "I Need Metal Fragments",
+  "d11_quick_chat_i_need_phrase_format wood":                "I Need Wood",
+  "d11_quick_chat_i_need_phrase_format stones":              "I Need Stone",
+  "d11_quick_chat_i_need_phrase_format water":               "I Need Water",
+  "d11_quick_chat_i_need_phrase_format metal.refined":       "I Need High Quality Metal",
+};
+
 const singleStepKits: Record<string, string> = {
   "I Need Metal Fragments": "elitekit",
   "I Need Scrap": "elitekit2",
   "I Need Low Grade Fuel": "elitekit3",
   "I Need Food": "elitekit4",
+  // Emote wheel resource kits (wood/stone/water/hqm go straight to kit without two-step)
+  "I Need Wood": "elitekit23",
+  "I Need Stone": "elitekit24",
+  "I Need Water": "elitekit_water",
+  "I Need High Quality Metal": "elitekit_hqm",
   "Follow Me": "elitekit5",
   "Help!": "elitekit6",
   "Nice": "elitekit7",
@@ -227,13 +251,26 @@ async function handleLog(raw: string, serverId: number, type?: string): Promise<
     try {
       const data = JSON.parse(raw) as Record<string, unknown>;
       const username = String(data["Username"] ?? "").trim();
-      // Skip server/admin broadcast messages (UserId=0 or Username="SERVER")
       const userId = Number(data["UserId"] ?? 0);
-      if (username && username !== "SERVER" && userId !== 0) {
-        // Message field may be JSON-string encoded ("\"hello\"") — unwrap it
-        const rawMsg = String(data["Message"] ?? "");
-        const message = rawMsg.replace(/^"(.*)"$/s, "$1").replace(/\\"/g, '"').trim();
-        await handleChatMessage(serverId, username, message);
+      // Message field may be JSON-string encoded ("\"hello\"") — unwrap it
+      const rawMsg = String(data["Message"] ?? "").replace(/^"(.*)"$/s, "$1").replace(/\\"/g, '"').trim();
+
+      if (username === "SERVER" || userId === 0) {
+        // Emote wheel events arrive as SERVER CHAT: "playerName : d11_quick_chat_xxx"
+        const emoteMatch = rawMsg.match(/^(.+?)\s*:\s*(d11_quick_chat_.+)$/);
+        if (emoteMatch) {
+          const emotePlayer = emoteMatch[1]!.trim();
+          const emoteCode = emoteMatch[2]!.trim();
+          const phrase = emoteToPhrase[emoteCode];
+          if (phrase) {
+            await handleChatMessage(serverId, emotePlayer, phrase);
+          }
+        }
+        return;
+      }
+
+      if (username) {
+        await handleChatMessage(serverId, username, rawMsg);
       }
     } catch { /* malformed JSON, skip */ }
     return;
