@@ -109,6 +109,7 @@ export interface ZorpZoneRow {
   server_id: number;
   ingame_name: string;
   team_id: string | null;
+  team_id_num: number | null;
   zone_id: string | null;
   created_at: string;
   expires_at: string;
@@ -543,21 +544,29 @@ export async function getZorpZone(serverId: number, ingameName: string): Promise
   return (r.rows[0] as unknown as ZorpZoneRow) ?? null;
 }
 
-export async function upsertZorpZone(serverId: number, ingameName: string, teamId: string, zoneId: string): Promise<void> {
+export async function upsertZorpZone(serverId: number, ingameName: string, teamId: string, zoneId: string, teamIdNum: number | null = null): Promise<void> {
   const existing = await getZorpZone(serverId, ingameName);
   if (existing) {
     await db.execute({
-      sql: `UPDATE zorp_zones SET team_id = ?, zone_id = ?, expires_at = datetime('now', '+24 hours'), status = 'white', created_at = datetime('now')
+      sql: `UPDATE zorp_zones SET team_id = ?, team_id_num = ?, zone_id = ?, expires_at = datetime('now', '+24 hours'), status = 'green', created_at = datetime('now'), last_seen_at = datetime('now')
             WHERE server_id = ? AND ingame_name = ?`,
-      args: [teamId, zoneId, serverId, ingameName]
+      args: [teamId, teamIdNum, zoneId, serverId, ingameName]
     });
   } else {
     await db.execute({
-      sql: `INSERT INTO zorp_zones (server_id, ingame_name, team_id, zone_id, created_at, expires_at, status)
-            VALUES (?, ?, ?, ?, datetime('now'), datetime('now', '+24 hours'), 'white')`,
-      args: [serverId, ingameName, teamId, zoneId]
+      sql: `INSERT INTO zorp_zones (server_id, ingame_name, team_id, team_id_num, zone_id, created_at, expires_at, status, last_seen_at)
+            VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now', '+24 hours'), 'green', datetime('now'))`,
+      args: [serverId, ingameName, teamId, teamIdNum, zoneId]
     });
   }
+}
+
+export async function getZorpZonesByTeamNum(serverId: number, teamIdNum: number): Promise<ZorpZoneRow[]> {
+  const r = await db.execute({
+    sql: "SELECT * FROM zorp_zones WHERE server_id = ? AND team_id_num = ?",
+    args: [serverId, teamIdNum]
+  });
+  return r.rows as unknown as ZorpZoneRow[];
 }
 
 export async function deleteZorpZone(serverId: number, ingameName: string): Promise<void> {

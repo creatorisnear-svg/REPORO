@@ -54,10 +54,11 @@ export async function runMigrations(db: Client): Promise<void> {
       server_id INTEGER REFERENCES servers(id),
       ingame_name TEXT,
       team_id TEXT,
+      team_id_num INTEGER,
       zone_id TEXT,
       created_at DATETIME,
       expires_at DATETIME,
-      status TEXT DEFAULT 'white',
+      status TEXT DEFAULT 'green',
       last_seen_at DATETIME
     )`,
     `CREATE TABLE IF NOT EXISTS zorp_pending (
@@ -199,6 +200,7 @@ export async function runMigrations(db: Client): Promise<void> {
   // Additive column migrations for existing databases
   const additiveMigrations = [
     "ALTER TABLE zorp_zones ADD COLUMN last_seen_at DATETIME",
+    "ALTER TABLE zorp_zones ADD COLUMN team_id_num INTEGER",
     "ALTER TABLE subscriptions ADD COLUMN server_count INTEGER DEFAULT 1",
   ];
   for (const sql of additiveMigrations) {

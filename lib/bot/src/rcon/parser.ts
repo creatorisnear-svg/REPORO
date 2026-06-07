@@ -35,6 +35,49 @@ const tpHomePending = new Map<string, number>(); // ingameName -> timestamp
 const eliteKitPending = new Map<string, number>(); // ingameName -> timestamp
 const combatLocked = new Map<string, number>(); // ingameName -> unlock timestamp
 
+// In-memory team tracking (populated from RCE team log events)
+// "serverId:playerName" -> { teamId, isLeader }
+const playerTeams = new Map<string, { teamId: number; isLeader: boolean }>();
+// "serverId:teamId" -> Set of player names
+const teamMembersMap = new Map<string, Set<string>>();
+// serverId -> Set of currently-online player names
+const onlinePlayers = new Map<number, Set<string>>();
+
+function setPlayerTeam(serverId: number, playerName: string, teamId: number, isLeader: boolean): void {
+  const pKey = `${serverId}:${playerName}`;
+  const existing = playerTeams.get(pKey);
+  if (existing) {
+    teamMembersMap.get(`${serverId}:${existing.teamId}`)?.delete(playerName);
+  }
+  playerTeams.set(pKey, { teamId, isLeader });
+  const tKey = `${serverId}:${teamId}`;
+  if (!teamMembersMap.has(tKey)) teamMembersMap.set(tKey, new Set());
+  teamMembersMap.get(tKey)!.add(playerName);
+}
+
+function clearPlayerTeam(serverId: number, playerName: string): void {
+  const pKey = `${serverId}:${playerName}`;
+  const existing = playerTeams.get(pKey);
+  if (existing) {
+    teamMembersMap.get(`${serverId}:${existing.teamId}`)?.delete(playerName);
+    playerTeams.delete(pKey);
+  }
+}
+
+function getPlayerTeam(serverId: number, playerName: string): { teamId: number; isLeader: boolean } | null {
+  return playerTeams.get(`${serverId}:${playerName}`) ?? null;
+}
+
+function isAnyTeamMemberOnline(serverId: number, teamId: number): boolean {
+  const members = teamMembersMap.get(`${serverId}:${teamId}`);
+  if (!members) return false;
+  const online = onlinePlayers.get(serverId) ?? new Set<string>();
+  for (const member of members) {
+    if (online.has(member)) return true;
+  }
+  return false;
+}
+
 // Single-step elite kit phrase map (kits 1-22)
 const singleStepKits: Record<string, string> = {
   "I Need Metal Fragments": "elitekit",
@@ -234,6 +277,32 @@ async function handleLog(raw: string, serverId: number, type?: string): Promise<
     ?? raw.match(/^NOTE:\s+(.+?)\s*:\s*(.+)$/i);
   if (noteMatch) {
     await handleNoteLog(serverId, noteMatch[1]!.trim(), noteMatch[2]!.trim());
+    return;
+  }
+
+  // Team events — track team membership and leadership for ZORP
+  // "[playerName] created a new team, ID: 2."
+  const teamCreatedMatch = raw.match(/^\[(.+?)\] created a new team, ID: (\d+)\.?$/i);
+  if (teamCreatedMatch) {
+    setPlayerTeam(serverId, teamCreatedMatch[1]!, parseInt(teamCreatedMatch[2]!), true);
+    return;
+  }
+  // "[playerName] has joined [leaderName]s team, ID: [2]"
+  const teamJoinedMatch = raw.match(/^\[(.+?)\] has joined \[.+?\]s team, ID: \[(\d+)\]$/i);
+  if (teamJoinedMatch) {
+    const joiner = teamJoinedMatch[1]!;
+    const teamId = parseInt(teamJoinedMatch[2]!);
+    const existingTeam = playerTeams.get(`${serverId}:${joiner}`);
+    // Don't overwrite: if player just created this team they're already marked as leader
+    if (!existingTeam || existingTeam.teamId !== teamId) {
+      setPlayerTeam(serverId, joiner, teamId, false);
+    }
+    return;
+  }
+  // "[playerName] has left [leaderName]s team, ID: [1]"
+  const teamLeftMatch = raw.match(/^\[(.+?)\] has left \[.+?\]s team, ID: \[(\d+)\]$/i);
+  if (teamLeftMatch) {
+    clearPlayerTeam(serverId, teamLeftMatch[1]!);
     return;
   }
 }
@@ -512,30 +581,65 @@ async function handleBountyKill(serverId: number, killer: string, victim: string
   }
 }
 
+async function setZorpGreen(serverId: number, ingameName: string, server: db.ServerRow | null): Promise<void> {
+  const now = new Date().toISOString();
+  await db.updateZorpLastSeen(serverId, ingameName, now).catch(() => null);
+  await db.updateZorpStatus(serverId, ingameName, "green").catch(() => null);
+  if (server?.rcon_host) {
+    await rconManager.sendFireAndForget(serverId, server.rcon_host, server.rcon_port!, server.rcon_password!,
+      `o.zorp unlock "${ingameName}"`).catch(() => null);
+  }
+}
+
+async function setZorpRed(serverId: number, ingameName: string, server: db.ServerRow | null): Promise<void> {
+  const now = new Date().toISOString();
+  await db.updateZorpLastSeen(serverId, ingameName, now).catch(() => null);
+  await db.updateZorpStatus(serverId, ingameName, "red").catch(() => null);
+  if (server?.rcon_host) {
+    await rconManager.sendFireAndForget(serverId, server.rcon_host, server.rcon_port!, server.rcon_password!,
+      `o.zorp lock "${ingameName}"`).catch(() => null);
+  }
+}
+
 async function handleJoin(serverId: number, playerName: string): Promise<void> {
   await postToChannel(serverId, "player-feed", `\u{1F7E2} **${playerName}** joined the server`);
 
-  // Update ZORP zone status to green immediately on join
+  // Track as online
+  if (!onlinePlayers.has(serverId)) onlinePlayers.set(serverId, new Set());
+  onlinePlayers.get(serverId)!.add(playerName);
+
+  const server = await getServerInfo(serverId);
+  const now = new Date().toISOString();
+
+  // Update own ZORP zone to green
   const zorpZone = await db.getZorpZone(serverId, playerName).catch(() => null);
-  if (zorpZone) {
-    const now = new Date().toISOString();
+  if (zorpZone && zorpZone.status !== "green") {
+    await setZorpGreen(serverId, playerName, server ?? null);
+  } else if (zorpZone) {
     await db.updateZorpLastSeen(serverId, playerName, now).catch(() => null);
-    if (zorpZone.status !== "green") {
-      await db.updateZorpStatus(serverId, playerName, "green").catch(() => null);
+  }
+
+  // Update teammate ZORP zones to green (team leader's zone)
+  const team = getPlayerTeam(serverId, playerName);
+  if (team) {
+    const teamZones = await db.getZorpZonesByTeamNum(serverId, team.teamId).catch(() => []);
+    for (const zone of teamZones) {
+      if (zone.ingame_name === playerName) continue;
+      if (zone.status !== "green") {
+        await setZorpGreen(serverId, zone.ingame_name, server ?? null);
+      }
     }
   }
 
+  // Prison teleport
   const isPris = await db.isPrisoner(serverId, playerName);
-  if (isPris) {
-    const server = await getServerInfo(serverId);
-    if (server?.rcon_host) {
-      const prisonPos = await db.getTpPositions(serverId, "prison");
-      if (prisonPos.length > 0) {
-        const pos = prisonPos[0];
-        try {
-          await rconManager.sendFireAndForget(serverId, server.rcon_host, server.rcon_port!, server.rcon_password!, `global.teleportpos ${pos.x},${pos.y},${pos.z} "${playerName}"`);
-        } catch { /* rcon may not be connected */ }
-      }
+  if (isPris && server?.rcon_host) {
+    const prisonPos = await db.getTpPositions(serverId, "prison");
+    if (prisonPos.length > 0) {
+      const pos = prisonPos[0];
+      try {
+        await rconManager.sendFireAndForget(serverId, server.rcon_host, server.rcon_port!, server.rcon_password!, `global.teleportpos ${pos.x},${pos.y},${pos.z} "${playerName}"`);
+      } catch { /* rcon may not be connected */ }
     }
   }
 }
@@ -543,13 +647,29 @@ async function handleJoin(serverId: number, playerName: string): Promise<void> {
 async function handleLeave(serverId: number, playerName: string): Promise<void> {
   await postToChannel(serverId, "player-feed", `\u{1F534} **${playerName}** left the server`);
 
-  // Update ZORP last_seen_at on leave so the offline timer starts from now, not from the last poll
+  // Remove from online set BEFORE checking teammates so isAnyTeamMemberOnline is accurate
+  onlinePlayers.get(serverId)?.delete(playerName);
+
+  const server = await getServerInfo(serverId);
+  const team = getPlayerTeam(serverId, playerName);
+
+  // Determine if any teammate is still online
+  const teammateOnline = team ? isAnyTeamMemberOnline(serverId, team.teamId) : false;
+
+  // Update own ZORP zone
   const zorpZone = await db.getZorpZone(serverId, playerName).catch(() => null);
-  if (zorpZone) {
-    const now = new Date().toISOString();
-    await db.updateZorpLastSeen(serverId, playerName, now).catch(() => null);
-    if (zorpZone.status === "green") {
-      await db.updateZorpStatus(serverId, playerName, "yellow").catch(() => null);
+  if (zorpZone && !teammateOnline) {
+    await setZorpRed(serverId, playerName, server ?? null);
+  }
+
+  // Update teammate ZORP zones — lock them too if no one from the team is online
+  if (team && !teammateOnline) {
+    const teamZones = await db.getZorpZonesByTeamNum(serverId, team.teamId).catch(() => []);
+    for (const zone of teamZones) {
+      if (zone.ingame_name === playerName) continue;
+      if (zone.status === "green") {
+        await setZorpRed(serverId, zone.ingame_name, server ?? null);
+      }
     }
   }
 }
@@ -581,9 +701,25 @@ async function handleChatMessage(serverId: number, playerName: string, message: 
 
   // ZORP flow - must check before single-step kits that share phrases
   if (msg === "Can I build around here?") {
-    const existing = await db.getZorpZone(serverId, playerName);
+    const zorpEnabled = await getConfig(serverId, "zorp") ?? "off";
+    if (zorpEnabled !== "on") return;
+
+    const server = await getServerInfo(serverId);
+    if (!server?.rcon_host) return;
+
+    // Require team leader
+    const team = getPlayerTeam(serverId, playerName);
+    if (!team || !team.isLeader) {
+      await sendGameSay(server, `<color=#FF8800><b>${playerName} you must be a team leader to create a ZORP zone.</b></color>`);
+      return;
+    }
+
     const key = `${serverId}:${playerName}`;
+    const existing = await db.getZorpZone(serverId, playerName);
     zorpPending.set(key, { step: existing ? 2 : 1, timestamp: Date.now() });
+
+    await sendGameSay(server, `<color=#FF8800><b>${playerName} are you in the middle of your base?</b></color>`);
+    await sendGameSay(server, `<color=#FF8800><b>[YES]          [NO]</b></color>`);
     return;
   }
 
@@ -597,6 +733,14 @@ async function handleChatMessage(serverId: number, playerName: string, message: 
         zorpPending.delete(zorpKey);
         return;
       }
+    }
+    if (msg === "No") {
+      zorpPending.delete(zorpKey);
+      const server = await getServerInfo(serverId);
+      if (server?.rcon_host) {
+        await sendGameSay(server, `<color=#FF8800><b>${playerName} zone creation cancelled.</b></color>`);
+      }
+      return;
     }
     if (msg === "Goodbye") {
       await handleZorpDelete(serverId, playerName);
@@ -709,8 +853,10 @@ async function handleZorpCreate(serverId: number, playerName: string): Promise<v
   const server = await getServerInfo(serverId);
   if (!server?.rcon_host) return;
 
+  const team = getPlayerTeam(serverId, playerName);
+  const teamIdNum = team?.teamId ?? null;
   const zoneId = `zone_${playerName}_${Date.now()}`;
-  const teamId = `team_${playerName}`;
+  const teamId = teamIdNum !== null ? `team_${teamIdNum}` : `team_${playerName}`;
 
   try {
     await rconManager.sendFireAndForget(serverId, server.rcon_host, server.rcon_port!, server.rcon_password!,
@@ -718,10 +864,13 @@ async function handleZorpCreate(serverId: number, playerName: string): Promise<v
   } catch { /* ignore */ }
 
   const existing = await db.getZorpZone(serverId, playerName);
-  await db.upsertZorpZone(serverId, playerName, teamId, zoneId);
+  await db.upsertZorpZone(serverId, playerName, teamId, zoneId, teamIdNum);
+
   if (existing) {
+    await sendGameSay(server, `<color=#FF8800><b>${playerName} your ZORP zone has been refreshed!</b></color>`);
     await postToChannel(serverId, "player-feed", `\u{1F504} **${playerName}**'s ZORP zone has been refreshed`);
   } else {
+    await sendGameSay(server, `<color=#FF8800><b>${playerName} your ZORP zone has been created! Log off to lock it.</b></color>`);
     await postToChannel(serverId, "player-feed", `\u{1F7E2} **${playerName}** created a ZORP zone`);
   }
 }
@@ -736,6 +885,7 @@ async function handleZorpDelete(serverId: number, playerName: string): Promise<v
   } catch { /* ignore */ }
 
   await db.deleteZorpZone(serverId, playerName);
+  await sendGameSay(server, `<color=#FF8800><b>${playerName} your ZORP zone has been removed.</b></color>`);
   await postToChannel(serverId, "player-feed", `\u{1F534} **${playerName}** deleted their ZORP zone`);
 }
 

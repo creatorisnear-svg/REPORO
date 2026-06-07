@@ -19,7 +19,7 @@ export const ALL_CONFIG_KEYS = [
   "recyclers_use","recyclers_time","recyclers_uselist",
   "currency_name","player_kill_points","scientist_kill_points",
   "daily_min","daily_max",
-  "zorp","zorptime","zorpExpiryTime","zorpallowlist",
+  "zorp","zorptime","zorpExpiryTime","zorpallowlist","zorpMinDistance",
   "chatbridge",
   "KillFeedGame","KillFeedDiscord","KillFeedKD","MiscKills",
   "AdminLogs","InGameLogs","DiscordLogs",
