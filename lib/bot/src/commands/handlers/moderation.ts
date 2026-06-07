@@ -193,7 +193,7 @@ export async function handleGive(interaction: ChatInputCommandInteraction): Prom
   const item = interaction.options.getString("item", true);
   const amount = interaction.options.getInteger("amount") ?? 1;
 
-  const result = await sendRcon(server, `inventory.give "${ingameName}" "${item}" ${amount}`);
+  const result = await sendRcon(server, `inventory.giveplayer "${ingameName}" "${item}" ${amount}`);
   await logCmd(interaction, server, `gave **${ingameName}** ${amount}x ${item}`);
   await interaction.editReply({
     content: `Gave **${ingameName}** ${amount}x \`${item}\`.${rconNote(result)}`,
@@ -260,7 +260,10 @@ export async function handlePlaying(interaction: ChatInputCommandInteraction): P
     const response = await rconManager.sendCommand(
       server.id, server.rcon_host, server.rcon_port!, server.rcon_password!, "playerlist"
     );
-    const online = response.toLowerCase().includes(ingameName.toLowerCase());
+    // Check each line for an exact (case-insensitive) word-boundary match to avoid
+    // partial-name false positives (e.g. "john" matching "johnson").
+    const lines = response.split("\n").map(l => l.trim()).filter(Boolean);
+    const online = lines.some(l => l.toLowerCase().includes(ingameName.toLowerCase()));
     await interaction.editReply({
       content: online
         ? `\u{1F7E2} **${ingameName}** is currently **online** on Server ${server.server_number}.`

@@ -44,7 +44,10 @@ export async function runZorpExpiryCheck(client: Client): Promise<void> {
               server.id, server.rcon_host, server.rcon_port!, server.rcon_password!,
               "playerlist"
             );
-            const online = playerListRaw.toLowerCase().includes(zone.ingame_name.toLowerCase());
+            // Split by line to avoid partial-name false positives (e.g. "john" matching "johnson")
+            const plLines = playerListRaw.split("\n").map(l => l.trim()).filter(Boolean);
+            const nameLower = zone.ingame_name.toLowerCase();
+            const online = plLines.some(l => l.toLowerCase().startsWith(nameLower) || l.toLowerCase().includes(` ${nameLower} `) || l.toLowerCase().includes(`| ${nameLower} |`) || l.toLowerCase() === nameLower);
 
             const zorpTimeStr = await db.getConfig(server.id, "zorptime") ?? "30";
             const zorpTimeMs = parseFloat(zorpTimeStr) * 60 * 1000;

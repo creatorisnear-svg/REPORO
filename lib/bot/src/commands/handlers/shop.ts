@@ -589,7 +589,7 @@ async function deliverClaim(interaction: ButtonInteraction): Promise<void> {
         for (let i = 0; i < qty; i++) {
           await rconManager.sendFireAndForget(
             server.id, server.rcon_host!, server.rcon_port!, server.rcon_password!,
-            `inventory.give "${ingameName}" "${product.shortname}" 1`
+            `inventory.giveplayer "${ingameName}" "${product.shortname}" 1`
           );
         }
       }

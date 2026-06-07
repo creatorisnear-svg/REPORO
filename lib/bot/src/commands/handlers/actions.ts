@@ -21,6 +21,9 @@ export async function handleActions(interaction: ChatInputCommandInteraction): P
 
   const ingameName = await getLinkedName(interaction, server.id);
 
+  // Fetch early — needed for conflict detection in elite kits section below
+  const tphomeEnabled = await db.getConfig(server.id, "TPHOME_use") ?? "off";
+
   const lines: string[] = [];
 
   // ---- Free Kit ----
@@ -33,7 +36,7 @@ export async function handleActions(interaction: ChatInputCommandInteraction): P
       const claim = await db.getLastKitClaim(server.id, ingameName, "freekit").catch(() => null);
       status = cooldownText(claim?.last_claimed ?? null, freekitTime);
     }
-    lines.push(`**🎁 Free Kit** (\`${freekitName}\`) — Say \`I need wood\` in-game\n  ${status}`);
+    lines.push(`**🎁 Free Kit** (\`${freekitName}\`) — Type \`I need wood\` in in-game chat\n  ${status}`);
   }
 
   // ---- VIP Kit ----
@@ -49,10 +52,12 @@ export async function handleActions(interaction: ChatInputCommandInteraction): P
         status = cooldownText(claim?.last_claimed ?? null, vipkitTime);
       }
     }
-    lines.push(`**⭐ VIP Kit** (\`${vipkitName}\`) — Say \`I need stone\` in-game\n  ${status}`);
+    lines.push(`**⭐ VIP Kit** (\`${vipkitName}\`) — Type \`I need stone\` in in-game chat\n  ${status}`);
   }
 
   // ---- Elite Kits (1-22 single-step) ----
+  // Note: "Retreat!" (elitekit17) is overridden by TP Home when TPHOME_use is "on".
+  // "Yes" (elitekit15) is overridden by the ZORP confirmation flow when a ZORP prompt is active.
   const eliteKitEmotes: Array<{ kit: string; phrase: string; label: string }> = [
     { kit: "elitekit",   phrase: "I Need Metal Fragments", label: "Elite Kit 1" },
     { kit: "elitekit2",  phrase: "I Need Scrap",            label: "Elite Kit 2" },
@@ -87,6 +92,13 @@ export async function handleActions(interaction: ChatInputCommandInteraction): P
     const kitName = await db.getConfig(server.id, `${kit}_name`) ?? kit;
 
     let status = "✅";
+
+    // Conflict: "Retreat!" is consumed by TP Home when it is enabled
+    if (kit === "elitekit17" && tphomeEnabled === "on") {
+      enabledEliteLines.push(`**${label}** (\`${kitName}\`) — \`${phrase}\` — ⚠️ Unavailable (TP Home has priority over Retreat!)`);
+      continue;
+    }
+
     if (ingameName) {
       const uselistEnabled = await db.getConfig(server.id, `${kit}_uselist`) ?? "off";
       if (uselistEnabled === "on") {
@@ -99,10 +111,10 @@ export async function handleActions(interaction: ChatInputCommandInteraction): P
       status = cooldownText(claim?.last_claimed ?? null, kitTime) === "✅ Available" ? "✅" : cooldownText(claim?.last_claimed ?? null, kitTime);
     }
 
-    enabledEliteLines.push(`**${label}** (\`${kitName}\`) — \`${phrase}\` — ${status}`);
+    enabledEliteLines.push(`**${label}** (\`${kitName}\`) — \`${phrase}\` emote — ${status}`);
   }
   if (enabledEliteLines.length > 0) {
-    lines.push(`\n**🔱 Elite Kits** — Use emote wheel phrase:\n${enabledEliteLines.join("\n")}`);
+    lines.push(`\n**🔱 Elite Kits** — Trigger via emote wheel:\n${enabledEliteLines.join("\n")}`);
   }
 
   // ---- Two-step Elite Kits (23-44) ----
@@ -129,7 +141,7 @@ export async function handleActions(interaction: ChatInputCommandInteraction): P
     enabledTwoStepLines.push(`**Elite Kit ${num}** (\`${kitName}\`) — \`I'm out of ammo\` → \`${phrase}\` — ${status}`);
   }
   if (enabledTwoStepLines.length > 0) {
-    lines.push(`\n**🔱 Two-Step Elite Kits** — Say \`I'm out of ammo\` first, then:\n${enabledTwoStepLines.join("\n")}`);
+    lines.push(`\n**🔱 Two-Step Elite Kits** — Type \`I'm out of ammo\` in chat first, then use the emote:\n${enabledTwoStepLines.join("\n")}`);
   }
 
   // ---- Recycler ----
@@ -151,11 +163,10 @@ export async function handleActions(interaction: ChatInputCommandInteraction): P
         status = cooldownText(claim?.last_claimed ?? null, recyclerTime);
       }
     }
-    lines.push(`\n**♻️ Recycler** — Say \`Repair This\` in-game\n  ${status}`);
+    lines.push(`\n**♻️ Recycler** — Use the \`Repair This\` emote\n  ${status}`);
   }
 
   // ---- TP Home ----
-  const tphomeEnabled = await db.getConfig(server.id, "TPHOME_use") ?? "off";
   if (tphomeEnabled === "on") {
     let status = "Say `Can I have a key?` to set home, `Retreat!` to teleport";
     if (ingameName) {
@@ -167,19 +178,20 @@ export async function handleActions(interaction: ChatInputCommandInteraction): P
   }
 
   // ---- Directional Teleports ----
+  // Abbreviations match exactly what the parser listens for ("N", "NE", "E", etc.)
   const tpDirs = [
-    { key: "TPN", label: "North" }, { key: "TPNE", label: "North-East" },
-    { key: "TPE", label: "East" }, { key: "TPSE", label: "South-East" },
-    { key: "TPS", label: "South" }, { key: "TPSW", label: "South-West" },
-    { key: "TPW", label: "West" }, { key: "TPNW", label: "North-West" },
+    { key: "TPN", abbr: "N", label: "North" }, { key: "TPNE", abbr: "NE", label: "North-East" },
+    { key: "TPE", abbr: "E", label: "East" }, { key: "TPSE", abbr: "SE", label: "South-East" },
+    { key: "TPS", abbr: "S", label: "South" }, { key: "TPSW", abbr: "SW", label: "South-West" },
+    { key: "TPW", abbr: "W", label: "West" }, { key: "TPNW", abbr: "NW", label: "North-West" },
   ];
   const enabledTps: string[] = [];
-  for (const { key, label } of tpDirs) {
+  for (const { key, abbr, label } of tpDirs) {
     const enabled = await db.getConfig(server.id, `${key}_use`) ?? "off";
-    if (enabled === "on") enabledTps.push(`\`${label}\``);
+    if (enabled === "on") enabledTps.push(`\`${abbr}\` (${label})`);
   }
   if (enabledTps.length > 0) {
-    lines.push(`\n**🗺️ Directional Teleports** — Say the direction in chat: ${enabledTps.join(", ")}`);
+    lines.push(`\n**🗺️ Directional Teleports** — Type the abbreviation in in-game chat: ${enabledTps.join(", ")}`);
   }
 
   // ---- ZORP ----
@@ -191,7 +203,7 @@ export async function handleActions(interaction: ChatInputCommandInteraction): P
       if (zone) status = ` — Your zone is **${zone.status}**`;
       else status = " — No zone created yet";
     }
-    lines.push(`\n**🔰 ZORP** — Say \`Can I build around here?\` to create/manage your zone${status}`);
+    lines.push(`\n**🔰 ZORP** — Use the \`Can I build around here?\` emote to create/manage your zone${status}`);
   }
 
   if (lines.length === 0) {
@@ -205,7 +217,7 @@ export async function handleActions(interaction: ChatInputCommandInteraction): P
     .setTitle(`🎮 Available In-Game Commands — Server ${server.server_number}`)
     .setDescription(lines.join("\n").substring(0, 4000) + notLinked)
     .setColor(0x5865f2)
-    .setFooter({ text: "Use the emote wheel or type phrases in in-game chat" });
+    .setFooter({ text: "Emote = use the emote wheel in-game • Type = enter the exact phrase in in-game text chat" });
 
   await interaction.editReply({ embeds: [embed] });
 }
