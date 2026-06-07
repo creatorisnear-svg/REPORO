@@ -302,7 +302,23 @@ async function handleLog(raw: string, serverId: number, type?: string): Promise<
   // "[playerName] has left [leaderName]s team, ID: [1]"
   const teamLeftMatch = raw.match(/^\[(.+?)\] has left \[.+?\]s team, ID: \[(\d+)\]$/i);
   if (teamLeftMatch) {
-    clearPlayerTeam(serverId, teamLeftMatch[1]!);
+    const leaver = teamLeftMatch[1]!;
+    const leaverTeam = getPlayerTeam(serverId, leaver);
+    // If the team leader leaves their team, delete their ZORP zone
+    if (leaverTeam?.isLeader) {
+      const zorpZone = await db.getZorpZone(serverId, leaver).catch(() => null);
+      if (zorpZone) {
+        const server = await getServerInfo(serverId);
+        if (server?.rcon_host) {
+          await rconManager.sendFireAndForget(serverId, server.rcon_host, server.rcon_port!, server.rcon_password!,
+            `o.zorp delete "${leaver}"`).catch(() => null);
+          await sendGameSay(server, `<color=#FF8800><b>${leaver} your ZORP zone was removed because you left your team.</b></color>`);
+        }
+        await db.deleteZorpZone(serverId, leaver).catch(() => null);
+        await postToChannel(serverId, "player-feed", `\u{1F534} **${leaver}**'s ZORP zone was deleted (left team)`);
+      }
+    }
+    clearPlayerTeam(serverId, leaver);
     return;
   }
 }
