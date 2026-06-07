@@ -50,6 +50,50 @@ export async function handleRemoveFromList(interaction: ChatInputCommandInteract
   await interaction.reply({ content: `Removed **${ingameName}** from **${listName}** on Server ${server.server_number}.`, flags: MessageFlags.Ephemeral });
 }
 
+export async function handleAddVip(interaction: ChatInputCommandInteraction): Promise<void> {
+  if (!await requireRole(interaction, "avivmod")) return;
+  const server = await getServerForInteraction(interaction);
+  if (!server) return;
+
+  const ingameName = interaction.options.getString("ingame_name", true).trim();
+
+  await db.addToList(server.id, "viplist", ingameName);
+
+  if (server.rcon_host) {
+    await rconManager.sendFireAndForget(
+      server.id, server.rcon_host, server.rcon_port!, server.rcon_password!,
+      `addto viplist "${ingameName}"`
+    ).catch(() => null);
+  }
+
+  await interaction.reply({
+    content: `✅ Added **${ingameName}** to the VIP list on Server ${server.server_number}.`,
+    flags: MessageFlags.Ephemeral,
+  });
+}
+
+export async function handleRemoveVip(interaction: ChatInputCommandInteraction): Promise<void> {
+  if (!await requireRole(interaction, "avivmod")) return;
+  const server = await getServerForInteraction(interaction);
+  if (!server) return;
+
+  const ingameName = interaction.options.getString("ingame_name", true).trim();
+
+  await db.removeFromList(server.id, "viplist", ingameName);
+
+  if (server.rcon_host) {
+    await rconManager.sendFireAndForget(
+      server.id, server.rcon_host, server.rcon_port!, server.rcon_password!,
+      `removefrom viplist "${ingameName}"`
+    ).catch(() => null);
+  }
+
+  await interaction.reply({
+    content: `Removed **${ingameName}** from the VIP list on Server ${server.server_number}.`,
+    flags: MessageFlags.Ephemeral,
+  });
+}
+
 export async function handleGetList(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!await requireRole(interaction, "avivmod")) return;
   const server = await getServerForInteraction(interaction);

@@ -50,21 +50,24 @@ export const ALL_CONFIG_KEYS = [
 
 import { handleSetup, handleAddServer, handleRemoveServer, handleDiag, handleAviv } from "./handlers/setup.js";
 import { handleLink, handleUnlink, handleAdminLink, handleWhois, handleSyncMe, handleSyncTarget, handleGetPlayerinfo } from "./handlers/linking.js";
-import { handleAddToList, handleRemoveFromList, handleGetList } from "./handlers/lists.js";
+import { handleAddToList, handleRemoveFromList, handleGetList, handleAddVip, handleRemoveVip } from "./handlers/lists.js";
 import { handleGivekit, handleRefreshKits, autocompleteGivekit } from "./handlers/kits.js";
 import { handleBalance, handleDaily, handleTransfer, handleSwap, handleLeaderboard, handleSetdailyscale, handleKillpoints, handleAddPointsPlayer, handleSubPointsPlayer, handleAddPointsServer, handleSubPointsServer, handleWipeEconomy } from "./handlers/economy.js";
-import { handleSpin, handleCoinflip, handleBlackjack, handleMaxbet } from "./handlers/gambling.js";
+import { handleSpin, handleCoinflip, handleBlackjack, handleMaxbet, handleRoshambo } from "./handlers/gambling.js";
 import { handleShop, handleAdminShopCreateShop, handleAdminShopDeleteShop, handleAdminShopAddCategory, handleAdminShopAddSubcategory, handleAdminShopAddItem, handleAdminShopAddKit, handleAdminShopEditProduct, handleAdminShopRemoveProduct, handleDelayshop, handleOpenshop, autocompleteShopAdmin } from "./handlers/shop.js";
-import { handleKick, handleBan, handleUnban, handleMute, handleUnmute, handleWarn, handleWarnings, handleClearwarnings, handleTempBan, handleGive, handlePlaying } from "./handlers/moderation.js";
+import { handleKick, handleBan, handleUnban, handleMute, handleUnmute, handleWarn, handleWarnings, handleClearwarnings, handleTempBan, handleGive, handlePlaying, handleGetBan } from "./handlers/moderation.js";
 import { handlePrison, handleUnprison, handlePrisonList } from "./handlers/prison.js";
 import { handleWipeZorp, handleDelZorp } from "./handlers/zorp.js";
 import { handleRaidlink, handleListRaidlink, handleListRaidalert, handleWipeRaidlink, handleDelRaidlink } from "./handlers/raidalerts.js";
 import { handleAdminChannels, handleAdminPositions, handleAdminScheduler } from "./handlers/channels.js";
-import { handleWipeClaims, handleWipeKills, handleWipeTpHome, handleWipeShopTimers, handleWipePositions, handleClearList, handleBanboom, handleUnbanboom, handleTimedrestart, handleDelayClaims, handleTriggerEvent, handleClearAnEvent, handleSetLeaderboard } from "./handlers/admin-wipe.js";
+import { handleWipeClaims, handleWipeKills, handleWipeTpHome, handleWipeShopTimers, handleWipePositions, handleClearList, handleBanboom, handleUnbanboom, handleTimedrestart, handleDelayClaims, handleTriggerEvent, handleClearAnEvent, handleSetLeaderboard, handleWipeBank } from "./handlers/admin-wipe.js";
 import { handleStats, handleProfile, handleTopkillers, handleScratch } from "./handlers/player.js";
 import { handleSet, autocompleteSet, handleConfigs } from "./handlers/configs.js";
 import { handleRconLog } from "./handlers/rconlog.js";
 import { handleTestKillfeed } from "./handlers/testkillfeed.js";
+import { handleBank } from "./handlers/bank.js";
+import { handleActions } from "./handlers/actions.js";
+import { handleClan } from "./handlers/clan.js";
 
 function serverOption(cmd: SlashCommandBuilder) {
   return cmd.addIntegerOption(o =>
@@ -610,5 +613,68 @@ export const commands: Command[] = [
     data: serverOption(new SlashCommandBuilder().setName("scratch").setDescription("Play a Rust scratch card for a chance to win coins")
       .addIntegerOption(o => o.setName("bet").setDescription("Amount to bet").setRequired(true).setMinValue(1)) as SlashCommandBuilder),
     execute: handleScratch,
+  },
+  // Bank
+  {
+    data: serverOption(new SlashCommandBuilder().setName("bank").setDescription("Manage your bank savings account")
+      .addSubcommand(s => s.setName("balance").setDescription("Check your wallet and bank balance"))
+      .addSubcommand(s => s.setName("deposit").setDescription("Deposit coins from your wallet into the bank")
+        .addIntegerOption(o => o.setName("amount").setDescription("Amount to deposit").setRequired(true).setMinValue(1)))
+      .addSubcommand(s => s.setName("withdraw").setDescription("Withdraw coins from the bank to your wallet")
+        .addIntegerOption(o => o.setName("amount").setDescription("Amount to withdraw").setRequired(true).setMinValue(1))) as SlashCommandBuilder),
+    execute: handleBank,
+  },
+  {
+    data: serverOption(new SlashCommandBuilder().setName("wipe-bank").setDescription("Wipe all bank balances on this server (admin)") as SlashCommandBuilder),
+    execute: handleWipeBank,
+  },
+  // Roshambo
+  {
+    data: serverOption(new SlashCommandBuilder().setName("roshambo").setDescription("Play rock paper scissors against the bot for coins")
+      .addIntegerOption(o => o.setName("bet").setDescription("Bet amount").setRequired(true).setMinValue(1))
+      .addStringOption(o => o.setName("choice").setDescription("Your choice").setRequired(true)
+        .addChoices(
+          { name: "🪨 Rock", value: "rock" },
+          { name: "📄 Paper", value: "paper" },
+          { name: "✂️ Scissors", value: "scissors" },
+        )) as SlashCommandBuilder),
+    execute: handleRoshambo,
+  },
+  // Actions
+  {
+    data: serverOption(new SlashCommandBuilder().setName("actions").setDescription("View all available in-game emote commands and their cooldowns") as SlashCommandBuilder),
+    execute: handleActions,
+  },
+  // Get ban
+  {
+    data: serverOption(new SlashCommandBuilder().setName("get-ban").setDescription("Check if a player is on the server ban list (mod)")
+      .addStringOption(o => o.setName("ingame_name").setDescription("In-game name to look up").setRequired(true)) as SlashCommandBuilder),
+    execute: handleGetBan,
+  },
+  // VIP shortcuts
+  {
+    data: serverOption(new SlashCommandBuilder().setName("add-vip").setDescription("Add a player to the VIP list (mod)")
+      .addStringOption(o => o.setName("ingame_name").setDescription("In-game name").setRequired(true)) as SlashCommandBuilder),
+    execute: handleAddVip,
+  },
+  {
+    data: serverOption(new SlashCommandBuilder().setName("remove-vip").setDescription("Remove a player from the VIP list (mod)")
+      .addStringOption(o => o.setName("ingame_name").setDescription("In-game name").setRequired(true)) as SlashCommandBuilder),
+    execute: handleRemoveVip,
+  },
+  // Clan
+  {
+    data: serverOption(new SlashCommandBuilder().setName("clan").setDescription("Clan system — create, join, or manage clans")
+      .addSubcommand(s => s.setName("create").setDescription("Create a new clan")
+        .addStringOption(o => o.setName("name").setDescription("Clan name (2–32 chars)").setRequired(true))
+        .addStringOption(o => o.setName("tag").setDescription("Clan tag (1–6 chars, shown in brackets)").setRequired(false)))
+      .addSubcommand(s => s.setName("join").setDescription("Join an existing clan")
+        .addStringOption(o => o.setName("name").setDescription("Clan name to join").setRequired(true)))
+      .addSubcommand(s => s.setName("leave").setDescription("Leave your current clan"))
+      .addSubcommand(s => s.setName("disband").setDescription("Disband your clan (leader only)"))
+      .addSubcommand(s => s.setName("info").setDescription("View info about a clan")
+        .addStringOption(o => o.setName("name").setDescription("Clan name (leave blank for your own clan)").setRequired(false)))
+      .addSubcommand(s => s.setName("list").setDescription("List all clans on this server")) as SlashCommandBuilder),
+    execute: handleClan,
   },
 ];

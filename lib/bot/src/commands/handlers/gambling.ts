@@ -145,6 +145,50 @@ export async function handleBlackjack(interaction: ChatInputCommandInteraction):
   await interaction.editReply({ embeds: [embed] });
 }
 
+export async function handleRoshambo(interaction: ChatInputCommandInteraction): Promise<void> {
+  const server = await getServerForInteraction(interaction);
+  if (!server) return;
+  await interaction.deferReply();
+
+  const ingameName = await getLinkedName(interaction, server.id);
+  if (!ingameName) { await interaction.editReply({ content: "You must be linked. Use /link." }); return; }
+
+  const bet = interaction.options.getInteger("bet", true);
+  if (bet < 1) { await interaction.editReply({ content: "Bet must be at least 1." }); return; }
+  const maxBet = await getMaxBet(server.id);
+  if (bet > maxBet) { await interaction.editReply({ content: `Max bet is ${maxBet}.` }); return; }
+
+  const eco = await db.getEconomy(server.id, ingameName);
+  if ((eco?.balance ?? 0) < bet) { await interaction.editReply({ content: "Insufficient balance." }); return; }
+
+  const choices = ["rock", "paper", "scissors"] as const;
+  type RPS = typeof choices[number];
+  const playerChoice = interaction.options.getString("choice", true) as RPS;
+  const botChoice = choices[Math.floor(Math.random() * 3)]!;
+
+  const beats: Record<RPS, RPS> = { rock: "scissors", paper: "rock", scissors: "paper" };
+  const emoji: Record<RPS, string> = { rock: "🪨", paper: "📄", scissors: "✂️" };
+
+  let result: "win" | "lose" | "tie";
+  if (playerChoice === botChoice) result = "tie";
+  else if (beats[playerChoice] === botChoice) result = "win";
+  else result = "lose";
+
+  const delta = result === "win" ? bet : result === "tie" ? 0 : -bet;
+  await db.updateBalance(server.id, ingameName, delta);
+
+  const currency = await getCurrencyName(server.id);
+  const newBal = (eco?.balance ?? 0) + delta;
+
+  const resultText = result === "win" ? "🏆 You win!" : result === "tie" ? "🤝 Tie — bet returned." : "💸 You lose!";
+  const embed = new EmbedBuilder()
+    .setTitle("✂️ Rock Paper Scissors")
+    .setDescription(`You: **${emoji[playerChoice]} ${playerChoice}** vs Bot: **${emoji[botChoice]} ${botChoice}**\n\n${resultText}\n${delta >= 0 ? "+" : ""}${delta} ${currency} | Balance: ${newBal} ${currency}`)
+    .setColor(result === "win" ? 0x2ecc71 : result === "tie" ? 0x95a5a6 : 0xe74c3c);
+
+  await interaction.editReply({ embeds: [embed] });
+}
+
 export async function handleMaxbet(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!await requireRole(interaction, "avivadmin")) return;
   const server = await getServerForInteraction(interaction);

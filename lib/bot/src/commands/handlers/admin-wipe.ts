@@ -227,7 +227,12 @@ export async function handleTriggerEvent(interaction: ChatInputCommandInteractio
 
   const pos = positions[Math.floor(Math.random() * positions.length)];
 
-  const cmd = eventType === "airdrop" ? "supply.call" : "supply.drop";
+  let cmd: string;
+  if (eventType === "airdrop") {
+    cmd = "callairlift";
+  } else {
+    cmd = `spawnlootcrate ${pos.x} ${pos.y} ${pos.z}`;
+  }
   const result = await sendRcon(server, cmd);
 
   const msgs = await Promise.all([1, 2, 3].map(n => db.getConfig(server.id, `event${eventNum}_msg${n}`)));
@@ -270,6 +275,17 @@ export async function handleClearAnEvent(interaction: ChatInputCommandInteractio
   await interaction.editReply({
     content: `All **${eventType}** positions for event **${eventNum}** cleared on Server ${server.server_number}.`,
   });
+}
+
+export async function handleWipeBank(interaction: ChatInputCommandInteraction): Promise<void> {
+  if (!await requireRole(interaction, "avivadmin")) return;
+  const server = await getServerForInteraction(interaction);
+  if (!server) return;
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  await db.wipeBankBalances(server.id);
+  await logCmd(interaction, server, "wiped all bank balances");
+  await interaction.editReply({ content: `All bank balances wiped on Server ${server.server_number}.` });
 }
 
 export async function handleSetLeaderboard(interaction: ChatInputCommandInteraction): Promise<void> {

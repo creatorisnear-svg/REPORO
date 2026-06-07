@@ -54,8 +54,27 @@ export interface EconomyRow {
   server_id: number;
   ingame_name: string;
   balance: number;
+  bank_balance: number;
   last_kill_farm: string | null;
   last_daily: string | null;
+}
+
+export interface ClanRow {
+  id: number;
+  server_id: number;
+  name: string;
+  tag: string | null;
+  leader_discord_id: string;
+  created_at: string;
+}
+
+export interface ClanMemberRow {
+  id: number;
+  clan_id: number;
+  ingame_name: string;
+  discord_user_id: string;
+  role: string;
+  joined_at: string;
 }
 
 export interface ListRow {
@@ -366,6 +385,111 @@ export async function getLeaderboard(serverId: number, limit = 10): Promise<Econ
     args: [serverId, limit]
   });
   return r.rows as unknown as EconomyRow[];
+}
+
+export async function wipeEconomy(serverId: number): Promise<void> {
+  await db.execute({
+    sql: "UPDATE economy SET balance = 0, bank_balance = 0 WHERE server_id = ?",
+    args: [serverId]
+  });
+}
+
+// ---- bank queries ----
+
+export async function getBankBalance(serverId: number, ingameName: string): Promise<number> {
+  const r = await db.execute({
+    sql: "SELECT bank_balance FROM economy WHERE server_id = ? AND ingame_name = ?",
+    args: [serverId, ingameName]
+  });
+  if (!r.rows[0]) return 0;
+  return Number((r.rows[0] as unknown as { bank_balance: number }).bank_balance ?? 0);
+}
+
+export async function updateBankBalance(serverId: number, ingameName: string, delta: number): Promise<void> {
+  await db.execute({
+    sql: "UPDATE economy SET bank_balance = MAX(0, COALESCE(bank_balance, 0) + ?) WHERE server_id = ? AND ingame_name = ?",
+    args: [delta, serverId, ingameName]
+  });
+}
+
+export async function wipeBankBalances(serverId: number): Promise<void> {
+  await db.execute({
+    sql: "UPDATE economy SET bank_balance = 0 WHERE server_id = ?",
+    args: [serverId]
+  });
+}
+
+// ---- clan queries ----
+
+export async function getClanByName(serverId: number, name: string): Promise<ClanRow | null> {
+  const r = await db.execute({
+    sql: "SELECT * FROM clans WHERE server_id = ? AND LOWER(name) = LOWER(?)",
+    args: [serverId, name]
+  });
+  return (r.rows[0] as unknown as ClanRow) ?? null;
+}
+
+export async function getClanById(id: number): Promise<ClanRow | null> {
+  const r = await db.execute({ sql: "SELECT * FROM clans WHERE id = ?", args: [id] });
+  return (r.rows[0] as unknown as ClanRow) ?? null;
+}
+
+export async function getPlayerClan(serverId: number, discordUserId: string): Promise<(ClanRow & { member_role: string }) | null> {
+  const r = await db.execute({
+    sql: `SELECT c.*, cm.role as member_role FROM clans c
+          JOIN clan_members cm ON cm.clan_id = c.id
+          WHERE c.server_id = ? AND cm.discord_user_id = ?`,
+    args: [serverId, discordUserId]
+  });
+  return (r.rows[0] as unknown as ClanRow & { member_role: string }) ?? null;
+}
+
+export async function createClan(serverId: number, name: string, tag: string | null, leaderDiscordId: string, leaderIngameName: string): Promise<number> {
+  const r = await db.execute({
+    sql: "INSERT INTO clans (server_id, name, tag, leader_discord_id) VALUES (?, ?, ?, ?)",
+    args: [serverId, name, tag, leaderDiscordId]
+  });
+  const clanId = Number(r.lastInsertRowid);
+  await db.execute({
+    sql: "INSERT INTO clan_members (clan_id, ingame_name, discord_user_id, role) VALUES (?, ?, ?, 'leader')",
+    args: [clanId, leaderIngameName, leaderDiscordId]
+  });
+  return clanId;
+}
+
+export async function addClanMember(clanId: number, ingameName: string, discordUserId: string): Promise<void> {
+  await db.execute({
+    sql: "INSERT OR IGNORE INTO clan_members (clan_id, ingame_name, discord_user_id, role) VALUES (?, ?, ?, 'member')",
+    args: [clanId, ingameName, discordUserId]
+  });
+}
+
+export async function removeClanMember(clanId: number, discordUserId: string): Promise<void> {
+  await db.execute({
+    sql: "DELETE FROM clan_members WHERE clan_id = ? AND discord_user_id = ?",
+    args: [clanId, discordUserId]
+  });
+}
+
+export async function getClanMembers(clanId: number): Promise<ClanMemberRow[]> {
+  const r = await db.execute({
+    sql: "SELECT * FROM clan_members WHERE clan_id = ? ORDER BY role DESC, joined_at ASC",
+    args: [clanId]
+  });
+  return r.rows as unknown as ClanMemberRow[];
+}
+
+export async function disbandClan(clanId: number): Promise<void> {
+  await db.execute({ sql: "DELETE FROM clan_members WHERE clan_id = ?", args: [clanId] });
+  await db.execute({ sql: "DELETE FROM clans WHERE id = ?", args: [clanId] });
+}
+
+export async function listClans(serverId: number): Promise<ClanRow[]> {
+  const r = await db.execute({
+    sql: "SELECT * FROM clans WHERE server_id = ? ORDER BY created_at DESC",
+    args: [serverId]
+  });
+  return r.rows as unknown as ClanRow[];
 }
 
 // ---- list queries ----
@@ -1024,13 +1148,6 @@ export async function addBounty(
     sql: `INSERT INTO configs (server_id, config_key, config_value) VALUES (?, ?, ?)
           ON CONFLICT(server_id, config_key) DO UPDATE SET config_value = excluded.config_value`,
     args: [serverId, `bounty_placer_${targetName}`, placerName]
-  });
-}
-
-export async function wipeEconomy(serverId: number): Promise<void> {
-  await db.execute({
-    sql: "UPDATE economy SET balance = 0 WHERE server_id = ?",
-    args: [serverId]
   });
 }
 

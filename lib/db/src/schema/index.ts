@@ -190,6 +190,23 @@ export async function runMigrations(db: Client): Promise<void> {
       note TEXT DEFAULT '',
       status TEXT DEFAULT 'pending',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS clans (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      server_id INTEGER REFERENCES servers(id),
+      name TEXT,
+      tag TEXT,
+      leader_discord_id TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(server_id, name)
+    )`,
+    `CREATE TABLE IF NOT EXISTS clan_members (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      clan_id INTEGER REFERENCES clans(id),
+      ingame_name TEXT,
+      discord_user_id TEXT,
+      role TEXT DEFAULT 'member',
+      joined_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`
   ];
 
@@ -202,6 +219,7 @@ export async function runMigrations(db: Client): Promise<void> {
     "ALTER TABLE zorp_zones ADD COLUMN last_seen_at DATETIME",
     "ALTER TABLE zorp_zones ADD COLUMN team_id_num INTEGER",
     "ALTER TABLE subscriptions ADD COLUMN server_count INTEGER DEFAULT 1",
+    "ALTER TABLE economy ADD COLUMN bank_balance INTEGER DEFAULT 0",
   ];
   for (const sql of additiveMigrations) {
     try {

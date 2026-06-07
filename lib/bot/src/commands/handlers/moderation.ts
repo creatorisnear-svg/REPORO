@@ -200,6 +200,48 @@ export async function handleGive(interaction: ChatInputCommandInteraction): Prom
   });
 }
 
+export async function handleGetBan(interaction: ChatInputCommandInteraction): Promise<void> {
+  if (!await requireRole(interaction, "avivmod")) return;
+  const server = await getServerForInteraction(interaction);
+  if (!server) return;
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  const ingameName = interaction.options.getString("ingame_name", true);
+
+  if (!server.rcon_host) {
+    await interaction.editReply({ content: "RCON not configured for this server." });
+    return;
+  }
+
+  try {
+    const response = await rconManager.sendCommand(
+      server.id, server.rcon_host, server.rcon_port!, server.rcon_password!,
+      "banlist"
+    );
+
+    const lines = response.split("\n").filter(l => l.trim());
+    const matchLine = lines.find(l => l.toLowerCase().includes(ingameName.toLowerCase()));
+
+    if (matchLine) {
+      const embed = new EmbedBuilder()
+        .setTitle("🔨 Player is Banned")
+        .setColor(0xe74c3c)
+        .setDescription(`**${ingameName}** is on the ban list.\n\nEntry:\n\`\`\`\n${matchLine.trim().slice(0, 500)}\n\`\`\``)
+        .setFooter({ text: `Server ${server.server_number}` });
+      await interaction.editReply({ embeds: [embed] });
+    } else {
+      const embed = new EmbedBuilder()
+        .setTitle("✅ Player Not Banned")
+        .setColor(0x2ecc71)
+        .setDescription(`**${ingameName}** was not found in the ban list on Server ${server.server_number}.`)
+        .setFooter({ text: "Note: name matching is case-insensitive" });
+      await interaction.editReply({ embeds: [embed] });
+    }
+  } catch (err) {
+    await interaction.editReply({ content: `Failed to query ban list: ${String(err)}` });
+  }
+}
+
 export async function handlePlaying(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!await requireRole(interaction, "avivmod")) return;
   const server = await getServerForInteraction(interaction);
